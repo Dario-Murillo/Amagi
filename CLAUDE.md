@@ -1,10 +1,10 @@
 # Amagi — Claude Context File
 
-Real-time multi-room chat application. Python/FastAPI backend, vanilla JS + Alpine.js frontend. No frontend framework, no ORM magic — raw async SQLAlchemy against PostgreSQL.
+Real-time multi-room chat application. Python/FastAPI backend, Next.js + TypeScript + Tailwind frontend. 
 
 ## Project Structure
 
-The backend follows a layered FastAPI layout rooted at `api/`. The frontend is a static sibling in `web/`, served independently.
+The backend follows a layered FastAPI layout rooted at `api/`. The frontend is a Next.js app in `web/`, served independently.
 
 ```
 Amagi/
@@ -58,9 +58,29 @@ Amagi/
 │       ├── api/                  # Endpoint integration tests
 │       └── services/             # Unit tests for business logic
 └── web/
-    ├── index.html                # Single page, three screens via Alpine.js
-    ├── style.css
-    └── app.js                    # Alpine app() component — all state and logic
+    ├── package.json              # pnpm is the package manager for this app
+    ├── next.config.ts
+    ├── tsconfig.json             # `@/*` resolves from the web/ root
+    ├── .env.example
+    ├── app/
+    │   ├── layout.tsx            # Fonts (DM Mono, Bebas Neue) and metadata
+    │   ├── globals.css           # Tailwind v4 import + @theme design tokens
+    │   └── page.tsx              # Client screen switcher: splash → auth → rooms → chat
+    ├── components/
+    │   ├── splash.tsx            # Painted until the stored session is read
+    │   ├── auth-screen.tsx
+    │   ├── rooms-screen.tsx
+    │   ├── chat-screen.tsx
+    │   └── wordmark.tsx
+    ├── hooks/
+    │   ├── use-auth.ts           # Session, login, register, logout
+    │   └── use-chat-socket.ts    # Room socket lifecycle, messages, roster
+    └── lib/
+        ├── config.ts             # API_BASE / WS_BASE
+        ├── rooms.ts              # FIXED_ROOMS
+        ├── session-store.ts      # localStorage session as an external store
+        ├── errors.ts             # Flattens FastAPI `detail` into one line
+        └── types.ts
 ```
 
 **Layering rule:** endpoints validate and delegate; they never build queries. Database access lives in `crud/`, stateful logic in `services/`, and anything an endpoint needs injected comes from `api/deps.py`.
@@ -78,11 +98,13 @@ uvicorn app.main:app --reload
 # API docs at http://localhost:8000/docs
 ```
 
-**Frontend:**
+**Frontend** — pnpm, not npm:
 ```bash
 cd web
-python -m http.server 3000 --bind 127.0.0.1
-# open http://127.0.0.1:3000
+pnpm install
+pnpm dev                          # http://localhost:3000
+pnpm lint                         # ESLint, including the React Compiler rules
+pnpm build
 ```
 
 **Tests:**
@@ -119,7 +141,7 @@ Allowed CORS origins live in `settings.cors_origins` and default to port 3000 on
 
 ## API Versioning
 
-Every route is mounted under `settings.api_v1_prefix` (`/api/v1`), including the WebSocket endpoint. The `API` and `WS` constants in `web/app.js` already include the prefix.
+Every route is mounted under `settings.api_v1_prefix` (`/api/v1`), including the WebSocket endpoint. `API_BASE` and `WS_BASE` in `web/lib/config.ts` already include the prefix; override them with `NEXT_PUBLIC_API_BASE` / `NEXT_PUBLIC_WS_BASE` (see `web/.env.example`).
 
 ## Auth Flow
 
@@ -167,7 +189,15 @@ messages      → id, text, created_at, user_id (FK), room_id (FK)
 
 **ConnectionManager is in-memory** — works for a single process. Horizontal scaling requires replacing it with Redis Pub/Sub (planned milestone).
 
-**Rooms are currently hardcoded on the frontend** — `FIXED_ROOMS` array in `app.js`. The `GET /rooms` endpoint exists but returns an empty list pending DB implementation.
+**Rooms are currently hardcoded on the frontend** — `FIXED_ROOMS` in `web/lib/rooms.ts`. The `GET /rooms` endpoint exists but returns an empty list pending DB implementation.
+
+**The frontend is one client-side route.** `app/page.tsx` is a Client Component that switches between splash, auth, rooms, and chat from local state — there is no server-side data fetching, and the session lives in `localStorage`. `ChatScreen` is rendered with `key={room.id}` so a room change remounts it and resets the socket, messages, and roster; `useChatSocket` relies on that and never clears them itself.
+
+## Tailwind Conventions
+
+**Always write the canonical class, never an arbitrary value that has one.** If a utility can be expressed on Tailwind's scale, it must be: `min-h-10.5` rather than `min-h-[42px]`, `w-57.5` rather than `w-[230px]`, `size-1.75` rather than `size-[7px]`. This is the `tailwindcss(suggestCanonicalClasses)` rule the editor surfaces, and it should never have anything left to report. A spacing unit is `0.25rem`, so divide the pixel value by 4; fractional multipliers such as `4.5` or `57.5` are valid and compile to exact rules. Arbitrary values remain only where no canonical equivalent exists — one-off font sizes (`text-[15px]`), letter spacing in px (`tracking-[2px]`), shadows, gradients, and `grid-cols-[...]` templates.
+
+**The root font size must stay at the browser default.** The scale is rem-based, so `p-4` is 16px only while `html` measures 16px. `globals.css` therefore applies the design's 13px base to `body`, not to `html`: setting it on the root shrinks every spacing, sizing, and font-size utility by 18.75% and makes the canonical class names lie about the pixels they produce.
 
 ## Known Gaps
 

@@ -1,0 +1,79 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #080810;
+  --color-surface: #0f0f1a;
+  --color-surface2: #16162a;
+  --color-border: #222238;
+  --color-accent: #c8ff47;
+  --color-accent2: #47b8ff;
+  --color-text: #ddddf0;
+  --color-muted: #52526e;
+  --color-danger: #ff4f4f;
+  --color-success: #3ddc84;
+  --color-warning: #f5a623;
+
+  --font-mono: var(--font-dm-mono), monospace;
+  --font-display: var(--font-bebas-neue), sans-serif;
+
+  --radius-sharp: 3px;
+
+  --animate-fade-in: fade-in 0.3s ease both;
+  --animate-fade-in-fast: fade-in 0.15s ease both;
+  --animate-glow: glow 2s ease-in-out infinite;
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes glow {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.4;
+    }
+  }
+}
+
+@utility scrollbar-slim {
+  &::-webkit-scrollbar {
+    width: 3px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: var(--color-border);
+    border-radius: 2px;
+  }
+}
+
+/*
+ * The root font size stays at the browser default. Tailwind's spacing scale is
+ * rem-based, so `p-4` is only the 16px the class name implies while `html`
+ * measures 16px; shrinking the root would silently shrink every spacing,
+ * sizing and font-size utility with it. The 13px base of the design is set on
+ * `body` instead, where it styles text without moving the scale.
+ */
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.5;
+}

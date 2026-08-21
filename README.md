@@ -1,10 +1,10 @@
 # Amagi
 
-A realtime chat web app built with FastAPI, WebSockets, and a lightweight browser frontend.
+A realtime chat web app built with FastAPI, WebSockets, and a Next.js frontend.
 
 ## Overview
 
-Amagi provides a chat application backend with user registration, JWT authentication, and WebSocket-powered room chat. The API is implemented in Python using FastAPI and async SQLAlchemy, laid out in the conventional layered structure (`api/app/`), while the frontend is a plain HTML/JavaScript client in `web/`.
+Amagi provides a chat application backend with user registration, JWT authentication, and WebSocket-powered room chat. The API is implemented in Python using FastAPI and async SQLAlchemy, laid out in the conventional layered structure (`api/app/`), while the frontend is a Next.js + TypeScript client in `web/`.
 
 ## Features
 
@@ -24,7 +24,7 @@ Amagi provides a chat application backend with user registration, JWT authentica
 - Alembic
 - Pydantic / pydantic-settings
 - JWT authentication (PyJWT) with Argon2 password hashing (pwdlib)
-- Plain HTML/CSS/JavaScript frontend (Alpine.js)
+- Next.js (App Router) with React, TypeScript, and Tailwind CSS
 
 ## Repository Structure
 
@@ -45,10 +45,12 @@ Amagi/
 │   ├── pyproject.toml    # Dependencies and package metadata
 │   ├── Dockerfile
 │   └── docker-compose.yml
-└── web/                  # Frontend client
-    ├── index.html
-    ├── app.js
-    └── style.css
+└── web/                  # Next.js frontend
+    ├── app/              # App Router entry: layout, global styles, page
+    ├── components/       # Auth, rooms, and chat screens
+    ├── hooks/            # Session and WebSocket hooks
+    ├── lib/              # Config, types, and client-side helpers
+    └── package.json
 ```
 
 ## Prerequisites
@@ -56,6 +58,7 @@ Amagi/
 - Python 3.11 or newer
 - PostgreSQL (or Docker, which brings its own)
 - `pip` package manager
+- Node.js 20 or newer and `pnpm` (for the frontend)
 
 ## Backend Setup
 
@@ -119,14 +122,17 @@ The suite runs against a throwaway SQLite database, so no PostgreSQL instance is
 
 ## Frontend Usage
 
-The frontend client lives in `web/`. Serve it over HTTP rather than opening the file directly, so the browser sends an origin the API accepts:
+The frontend client lives in `web/` and uses **pnpm**:
 
 ```powershell
 cd web
-python -m http.server 3000 --bind 127.0.0.1
+pnpm install
+pnpm dev
 ```
 
-Then open `http://127.0.0.1:3000`.
+Then open `http://localhost:3000`.
+
+By default the client talks to `http://localhost:8000/api/v1`. To point it elsewhere, copy `web/.env.example` to `web/.env.local` and edit `NEXT_PUBLIC_API_BASE` and `NEXT_PUBLIC_WS_BASE`. Note that the API matches CORS origins exactly, so the host you open must be listed in `settings.cors_origins`.
 
 ## API Endpoints
 
