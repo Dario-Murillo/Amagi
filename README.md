@@ -1,61 +1,68 @@
-# Python-Websockets-Chat
+# Amagi
 
 A realtime chat web app built with FastAPI, WebSockets, and a lightweight browser frontend.
 
 ## Overview
 
-This project provides a simple chat application backend with user registration, JWT authentication, and WebSocket-powered room chat support. The API is implemented in Python using FastAPI and async SQLAlchemy, while the frontend is a plain HTML/JavaScript client located in the `web/` folder.
+Amagi provides a chat application backend with user registration, JWT authentication, and WebSocket-powered room chat. The API is implemented in Python using FastAPI and async SQLAlchemy, laid out in the conventional layered structure (`api/app/`), while the frontend is a plain HTML/JavaScript client in `web/`.
 
 ## Features
 
 - User registration and login
 - JWT access tokens for API and WebSocket authentication
-- WebSocket room connections
-- Room-based message broadcasts
-- Async database access with SQLAlchemy and PostgreSQL/SQLite-compatible async URL support
+- WebSocket room connections with room-based message broadcasts
+- Async database access with SQLAlchemy and PostgreSQL
 - Alembic migrations for database schema management
+- Versioned API surface under `/api/v1`
+- Pytest suite covering the endpoints and the connection manager
 
 ## Tech Stack
 
-- Python 3.11+ (recommended)
+- Python 3.11+
 - FastAPI
-- SQLAlchemy asyncio
-- asyncpg / any async database driver supported by SQLAlchemy
+- SQLAlchemy asyncio + asyncpg
 - Alembic
-- Pydantic
-- JWT authentication
-- Plain HTML/CSS/JavaScript frontend
+- Pydantic / pydantic-settings
+- JWT authentication (PyJWT) with Argon2 password hashing (pwdlib)
+- Plain HTML/CSS/JavaScript frontend (Alpine.js)
 
 ## Repository Structure
 
-- `api/` - backend application
-  - `main.py` - FastAPI application entrypoint
-  - `routers/` - API and WebSocket route definitions
-  - `database.py` - async database engine and session management
-  - `auth.py` - password hashing, token creation, and user verification
-  - `config.py` - environment settings loader
-  - `models.py` - SQLAlchemy ORM models
-  - `schemas.py` - request/response Pydantic schemas
-  - `requirements.txt` - Python dependencies
-  - `alembic/` - DB migration configuration and versions
-- `web/` - frontend client files
-  - `index.html`
-  - `app.js`
-  - `style.css`
+```
+Amagi/
+├── api/                  # FastAPI project root
+│   ├── app/              # Application package
+│   │   ├── main.py       # Application entrypoint
+│   │   ├── api/          # Routers, endpoints and shared dependencies
+│   │   ├── core/         # Config, database engine, security primitives
+│   │   ├── crud/         # Reusable database operations
+│   │   ├── models/       # SQLAlchemy ORM models
+│   │   ├── schemas/      # Pydantic request/response schemas
+│   │   ├── services/     # Business logic (WebSocket connection manager)
+│   │   └── utils/        # Helpers
+│   ├── alembic/          # Migration configuration and versions
+│   ├── tests/            # Test suite
+│   ├── pyproject.toml    # Dependencies and package metadata
+│   ├── Dockerfile
+│   └── docker-compose.yml
+└── web/                  # Frontend client
+    ├── index.html
+    ├── app.js
+    └── style.css
+```
 
 ## Prerequisites
 
 - Python 3.11 or newer
-- Git (optional)
-- A database supported by SQLAlchemy async connections
+- PostgreSQL (or Docker, which brings its own)
 - `pip` package manager
 
 ## Backend Setup
 
-1. Open a terminal and navigate to the project root:
+1. Move into the API project root:
 
 ```powershell
-cd "e:\Programación\Python\Python-Websockets-Chat\api"
+cd api
 ```
 
 2. Create and activate a virtual environment:
@@ -65,21 +72,18 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 ```
 
-3. Install dependencies:
+3. Install the project and its development extras:
 
 ```powershell
-pip install -r requirements.txt
+pip install -e ".[dev]"
 ```
 
-4. Create a `.env` file in `api/` with the required environment variables:
+4. Create a `.env` file in `api/` (see `.env.example`):
 
 ```text
-DATABASE_URL=sqlite+aiosqlite:///./chat.db
+DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/amagi
 SECRET_KEY=your-secret-key
 ```
-
-> If you prefer PostgreSQL, set `DATABASE_URL` to a valid Postgres async URL like:
-> `postgresql+asyncpg://user:password@localhost:5432/chatdb`
 
 5. Apply database migrations:
 
@@ -89,55 +93,67 @@ alembic upgrade head
 
 ## Running the Backend
 
-Start the FastAPI app with Uvicorn:
-
 ```powershell
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+uvicorn app.main:app --reload
 ```
 
-The API will be available at `http://localhost:8000`.
+The API is available at `http://localhost:8000`, with interactive docs at `http://localhost:8000/docs`.
+
+### With Docker
+
+```powershell
+cd api
+docker compose up --build
+```
+
+This starts PostgreSQL and the API together. Migrations still have to be applied against the running database.
+
+## Running the Tests
+
+```powershell
+cd api
+pytest
+```
+
+The suite runs against a throwaway SQLite database, so no PostgreSQL instance is required.
 
 ## Frontend Usage
 
-The frontend client is located in `web/index.html`. You can open this file directly in your browser or serve it from a static web server.
-
-If you want a quick local server, use Python from the project root:
+The frontend client lives in `web/`. Serve it over HTTP rather than opening the file directly, so the browser sends an origin the API accepts:
 
 ```powershell
-cd "e:\Programación\Python\Python-Websockets-Chat\web"
-python -m http.server 3000
+cd web
+python -m http.server 3000 --bind 127.0.0.1
 ```
 
-Then open `http://localhost:3000` in your browser.
+Then open `http://127.0.0.1:3000`.
 
 ## API Endpoints
 
-- `POST /users/register` - Register a new user
-- `POST /users/token` - Log in and receive a JWT access token
-- `GET /users/me` - Retrieve the current authenticated user
-- `GET /rooms/` - Get rooms (currently placeholder)
-- `POST /rooms/` - Create a room (currently placeholder)
-- `GET /rooms/{room_id}` - Get room details (currently placeholder)
-- `DELETE /rooms/{room_id}` - Delete a room (currently placeholder)
+All routes are mounted under the `/api/v1` prefix.
+
+- `POST /api/v1/users/register` - Register a new user
+- `POST /api/v1/users/token` - Log in and receive a JWT access token
+- `GET /api/v1/users/me` - Retrieve the current authenticated user
+- `GET /api/v1/rooms/` - Get rooms (currently a placeholder)
+- `POST /api/v1/rooms/` - Create a room (currently a placeholder)
+- `GET /api/v1/rooms/{room_id}` - Get room details (currently a placeholder)
+- `DELETE /api/v1/rooms/{room_id}` - Delete a room (currently a placeholder)
 
 ## WebSocket Usage
 
-The WebSocket endpoint is:
-
 ```text
-ws://localhost:8000/ws/{room_id}?token={JWT_TOKEN}
+ws://localhost:8000/api/v1/ws/{room_id}?token={JWT_TOKEN}
 ```
 
-Replace `{room_id}` with the room identifier and `{JWT_TOKEN}` with a valid JWT obtained from `/users/token`.
-
-The frontend should send a join event after connecting and then send message payloads as JSON.
+Replace `{room_id}` with the room identifier and `{JWT_TOKEN}` with a valid JWT obtained from `/api/v1/users/token`. The client sends a join event after connecting and then sends message payloads as JSON.
 
 ## Example Auth Flow
 
 1. Register a user:
 
 ```http
-POST /users/register
+POST /api/v1/users/register
 Content-Type: application/json
 
 {
@@ -149,7 +165,7 @@ Content-Type: application/json
 2. Log in for a token:
 
 ```http
-POST /users/token
+POST /api/v1/users/token
 Content-Type: application/x-www-form-urlencoded
 
 username=alice&password=password123
@@ -158,16 +174,15 @@ username=alice&password=password123
 3. Use the returned `access_token` for WebSocket auth:
 
 ```text
-ws://localhost:8000/ws/room1?token=eyJhbGciOiJI...
+ws://localhost:8000/api/v1/ws/room1?token=eyJhbGciOiJI...
 ```
 
 ## Notes
 
-- `rooms` endpoints are currently defined as placeholders and may need further implementation.
-- Database URL and secret key are loaded from `.env`.
-- CORS is configured for `http://localhost:3000` and `http://[::1]:3000`.
+- The `rooms` endpoints are still placeholders; the queries they need already live in `app/crud/crud_room.py`.
+- Database URL and secret key are loaded from `.env` and validated at startup.
+- Allowed CORS origins are configured in `app/core/config.py` and cover port 3000 on `localhost`, `127.0.0.1`, and `[::1]`.
 
 ## License
 
 This project is provided as-is for learning and experimentation.
-
