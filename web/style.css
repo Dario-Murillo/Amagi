@@ -38,7 +38,7 @@ html, body {
 }
 
 /* ─── SHARED ─────────────────────────────────────────── */
-.relay-wordmark {
+.amagi-wordmark {
   font-family: var(--display);
   font-size: 32px;
   letter-spacing: 3px;
@@ -46,8 +46,8 @@ html, body {
   line-height: 1;
 }
 
-.relay-wordmark.small { font-size: 20px; letter-spacing: 2px; }
-.relay-version {
+.amagi-wordmark.small { font-size: 20px; letter-spacing: 2px; }
+.amagi-version {
   font-size: 10px;
   color: var(--muted);
   letter-spacing: 2px;

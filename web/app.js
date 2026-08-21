@@ -1,5 +1,5 @@
-const API = "http://localhost:8000";
-const WS = "ws://localhost:8000";
+const API = "http://localhost:8000/api/v1";
+const WS = "ws://localhost:8000/api/v1";
 
 // Fixed rooms — swap these out for API calls once GET /rooms is wired to the DB
 const FIXED_ROOMS = [
@@ -61,8 +61,8 @@ function app() {
 
     // ── Init ───────────────────────────────────────────
     init() {
-      const token = localStorage.getItem("relay_token");
-      const user = localStorage.getItem("relay_user");
+      const token = localStorage.getItem("amagi_token");
+      const user = localStorage.getItem("amagi_user");
       if (token && user) {
         this.token = token;
         this.currentUser = user;
@@ -102,8 +102,8 @@ function app() {
         this.token = data.access_token;
         this.currentUser = this.loginData.username.toLowerCase();
 
-        localStorage.setItem("relay_token", this.token);
-        localStorage.setItem("relay_user", this.currentUser);
+        localStorage.setItem("amagi_token", this.token);
+        localStorage.setItem("amagi_user", this.currentUser);
 
         this.loginData = { username: "", password: "" };
         this.screen = "rooms";
@@ -162,8 +162,8 @@ function app() {
 
     logout() {
       if (this.ws) this.ws.close();
-      localStorage.removeItem("relay_token");
-      localStorage.removeItem("relay_user");
+      localStorage.removeItem("amagi_token");
+      localStorage.removeItem("amagi_user");
       this.token = null;
       this.currentUser = null;
       this.activeRoom = null;
