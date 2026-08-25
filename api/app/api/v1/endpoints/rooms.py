@@ -1,28 +1,30 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, status
 
-# NOTE: these handlers are still stubs. Rooms are addressed by their `slug`
-# everywhere outside the database now, so `crud_room.get_by_slug` is the query
-# these need; `rooms.id` stays an internal key for the foreign keys only.
-# Wiring them up is its own change: they also need `CurrentUser`, since create
-# and delete are currently unauthenticated.
+from app.api.deps import CurrentUser, DbSession
+from app.crud import crud_room
+from app.models.room import Room
+from app.schemas.room import RoomResponse
+
+# Read-only on purpose: rooms are seeded by migration and users have no
+# permission to create or delete them, so no write endpoints are exposed.
+# Listing requires a session, the same as opening a room socket does.
 router = APIRouter(prefix="/rooms", tags=["rooms"])
 
 
-@router.get("/")
-async def get_rooms():
-    return []
+@router.get("", response_model=list[RoomResponse])
+async def get_rooms(current_user: CurrentUser, db: DbSession) -> list[Room]:
+    """Every room, in the order the room list renders them."""
+    return await crud_room.get_all(db)
 
 
-@router.post("/")
-async def create_room(name: str):
-    pass
+@router.get("/{slug}", response_model=RoomResponse)
+async def get_room(slug: str, current_user: CurrentUser, db: DbSession) -> Room:
+    room = await crud_room.get_by_slug(db, slug)
 
+    if room is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Room not found",
+        )
 
-@router.get("/{room_id}")
-async def get_room(room_id: str):
-    return None
-
-
-@router.delete("/{room_id}")
-async def delete_room(room_id: str):
-    return None
+    return room
