@@ -20,7 +20,7 @@ function formatTime(iso?: string): string {
  *
  * Messages and members accumulate for the life of the component and are never
  * cleared, so the caller must remount on room change — render it with
- * `key={room.id}` — rather than swapping the `roomId` argument under it.
+ * `key={room.slug}` — rather than swapping the `roomId` argument under it.
  */
 export function useChatSocket(roomId: string, session: Session) {
   const { token, username } = session;

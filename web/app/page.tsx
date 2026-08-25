@@ -38,7 +38,7 @@ export default function Home() {
     return (
       <ChatScreen
         // Remount per room so the socket, messages, and roster all reset.
-        key={activeRoom.id}
+        key={activeRoom.slug}
         session={session}
         room={activeRoom}
         onLeave={() => setActiveRoom(null)}

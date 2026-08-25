@@ -3,8 +3,10 @@ export type Session = {
   username: string;
 };
 
+/** Mirrors RoomResponse from the API. `slug` is what addresses a room. */
 export type Room = {
-  id: string;
+  id: number;
+  slug: string;
   name: string;
   topic: string;
   description: string;

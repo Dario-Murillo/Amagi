@@ -74,10 +74,11 @@ Amagi/
     │   └── wordmark.tsx
     ├── hooks/
     │   ├── use-auth.ts           # Session, login, register, logout
+    │   ├── use-rooms.ts          # Room list: loading, error, retry
     │   └── use-chat-socket.ts    # Room socket lifecycle, messages, roster
     └── lib/
         ├── config.ts             # API_BASE / WS_BASE
-        ├── rooms.ts              # FIXED_ROOMS
+        ├── rooms.ts              # fetchRooms() against GET /rooms
         ├── session-store.ts      # localStorage session as an external store
         ├── errors.ts             # Flattens FastAPI `detail` into one line
         └── types.ts
@@ -195,9 +196,9 @@ messages      → id, text, created_at, user_id (FK), room_id (FK)
 
 **ConnectionManager is in-memory** — works for a single process. Horizontal scaling requires replacing it with Redis Pub/Sub (planned milestone).
 
-**Rooms are currently hardcoded on the frontend** — `FIXED_ROOMS` in `web/lib/rooms.ts`. The `GET /rooms` endpoint exists but returns an empty list pending DB implementation.
+**Rooms come from the database** — seeded by migration and served by `GET /rooms`, which requires a session. They are addressed by `slug` everywhere outside the database (`rooms.id` is only what the foreign keys point at), so the WebSocket path, `web/lib/types.ts` and the remount key all carry the slug. The API is deliberately read-only for rooms: users have no permission to create or delete them, so no write endpoints are exposed.
 
-**The frontend is one client-side route.** `app/page.tsx` is a Client Component that switches between splash, auth, rooms, and chat from local state — there is no server-side data fetching, and the session lives in `localStorage`. `ChatScreen` is rendered with `key={room.id}` so a room change remounts it and resets the socket, messages, and roster; `useChatSocket` relies on that and never clears them itself.
+**The frontend is one client-side route.** `app/page.tsx` is a Client Component that switches between splash, auth, rooms, and chat from local state — there is no server-side data fetching, and the session lives in `localStorage`. The one client-side fetch is `useRooms`, which keeps its three outcomes in a single tagged state value so the effect never writes state synchronously — the React Compiler lint rules reject that. `ChatScreen` is rendered with `key={room.id}` so a room change remounts it and resets the socket, messages, and roster; `useChatSocket` relies on that and never clears them itself.
 
 ## Tailwind Conventions
 
@@ -207,7 +208,6 @@ messages      → id, text, created_at, user_id (FK), room_id (FK)
 
 ## Known Gaps
 
-- **`room_id` type mismatch.** The frontend and the WebSocket route address rooms by string slug (`"general"`, `"tech"`), while `rooms.id` is an integer. Wiring `endpoints/rooms.py` to `crud_room` requires picking one of the two first.
 - **Messages are never persisted.** The WebSocket handler broadcasts and forgets; the `messages` table is unused.
 - **`broadcast()` has no per-socket error handling.** One dead socket raises and the remaining connections in that room miss the message.
 - **Only `WebSocketDisconnect` is caught.** Malformed non-JSON input escapes the handler without cleanup, leaving a stale socket registered in the room.
@@ -216,8 +216,6 @@ messages      → id, text, created_at, user_id (FK), room_id (FK)
 
 ## What's Pending
 
-- Wire `app/api/v1/endpoints/rooms.py` to `crud_room`
-- Seed the 5 default rooms into the database
 - Redis Pub/Sub to replace in-memory ConnectionManager
 - Nginx reverse proxy with WebSocket upgrade headers
 - Message history on room join (load last N messages from DB)

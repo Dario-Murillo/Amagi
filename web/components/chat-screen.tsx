@@ -22,7 +22,7 @@ const STATUS_STYLES: Record<WsStatus, { dot: string; label: string }> = {
 };
 
 export default function ChatScreen({ session, room, onLeave, onLogout }: Props) {
-  const { status, messages, members, send } = useChatSocket(room.id, session);
+  const { status, messages, members, send } = useChatSocket(room.slug, session);
   const [text, setText] = useState("");
 
   const listRef = useRef<HTMLDivElement>(null);
@@ -165,7 +165,7 @@ export default function ChatScreen({ session, room, onLeave, onLogout }: Props) 
                     </span>
                   </div>
                   <div className="min-h-4.5 w-px shrink-0 self-stretch bg-border" />
-                  <div className="flex-1 break-words pt-px text-[13px] leading-relaxed">
+                  <div className="flex-1 wrap-break-word pt-px text-[13px] leading-relaxed">
                     {message.text}
                   </div>
                 </div>
