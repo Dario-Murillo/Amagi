@@ -22,7 +22,10 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/amagi
-      SECRET_KEY: ${SECRET_KEY:-change-me}
+      # No default on purpose: a fallback here would sign every JWT with a value
+      # that is public in this repo. Compose interpolates this from `api/.env`
+      # (or the shell) and refuses to start when it is missing or empty.
+      SECRET_KEY: "${SECRET_KEY:?set SECRET_KEY in api/.env, see .env.example}"
     ports:
       - "8000:8000"
 

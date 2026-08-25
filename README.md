@@ -85,7 +85,14 @@ pip install -e ".[dev]"
 
 ```text
 DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/amagi
-SECRET_KEY=your-secret-key
+SECRET_KEY=<a generated random value>
+```
+
+`SECRET_KEY` signs every access token, so it has to be a real random value —
+anyone who knows it can forge a token for any account. Generate one with:
+
+```powershell
+python -c "import secrets; print(secrets.token_urlsafe(32))"
 ```
 
 5. Apply database migrations:
@@ -110,6 +117,10 @@ docker compose up --build
 ```
 
 This starts PostgreSQL and the API together. Migrations still have to be applied against the running database.
+
+Compose reads `SECRET_KEY` from `api/.env` (or from the shell environment) and
+there is no default: the API container refuses to start if the variable is
+missing or empty, rather than falling back to a key that is public in this repo.
 
 ## Running the Tests
 

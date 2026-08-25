@@ -135,6 +135,12 @@ DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/amagi
 SECRET_KEY=your-secret-key-here
 ```
 
+`SECRET_KEY` signs every JWT and has no fallback anywhere: `config.py` declares
+it as a required field, and `docker-compose.yml` uses the `${SECRET_KEY:?...}`
+form so the API container fails to start instead of booting with a placeholder
+key. Compose interpolates it from `api/.env`, which is the same file the local
+uvicorn run uses.
+
 `app/core/config.py` loads these via Pydantic Settings. `DATABASE_URL` must use the `postgresql+asyncpg://` driver prefix for async SQLAlchemy to work. Settings are validated at import time, so a missing variable fails the process at startup rather than at first request.
 
 Allowed CORS origins live in `settings.cors_origins` and default to port 3000 on `localhost`, `127.0.0.1`, and `[::1]`. The browser matches origins exactly, so the host used to open the frontend must be one of them.
