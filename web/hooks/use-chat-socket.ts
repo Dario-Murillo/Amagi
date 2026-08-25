@@ -4,8 +4,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { WS_BASE } from "@/lib/config";
 import type { ChatMessage, ServerFrame, Session, WsStatus } from "@/lib/types";
 
-// Mirrors WS_ROOM_NOT_FOUND in the API: the slug reached no room, as opposed to
-// the 1008 the server sends when it rejects the token.
+// Mirrors WS_ROOM_NOT_FOUND in the API: the slug reached no room. The server
+// has to accept the socket before sending it, because a code sent while the
+// handshake is still open never reaches the browser -- it arrives as a plain
+// failed connection. A rejected token is exactly that case, so it cannot be
+// told apart here and falls through to the generic message below.
 const WS_ROOM_NOT_FOUND = 4004;
 
 function formatTime(iso?: string): string {

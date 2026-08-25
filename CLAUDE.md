@@ -177,6 +177,10 @@ Every route is mounted under `settings.api_v1_prefix` (`/api/v1`), including the
 
 Username in all server messages comes from the verified JWT, not from client payload — clients cannot spoof identity.
 
+**Close codes.** A rejected token is refused before the handshake completes, so an unauthenticated peer never holds an open socket; uvicorn turns that into an HTTP 403 and the browser only sees a failed connection. An unknown room slug is different: the socket is accepted first and *then* closed with the application code `4004`, because a code sent before the handshake completes never reaches the browser. Any check that needs to report a reason to the client has to accept first.
+
+**Testing sockets.** `tests/api/test_websockets.py` drives the route in-process with `httpx-ws`. Note that its ASGI transport surfaces a pre-accept close as a real close code, which a browser does not — so a test passing there is not proof the client can see the code. Verify anything close-code-shaped against a real uvicorn.
+
 ## Database Schema
 
 ```

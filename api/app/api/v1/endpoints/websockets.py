@@ -27,20 +27,31 @@ async def websocket_endpoint(
         user = await get_current_user_ws(token, db)
 
         if user is None:
+            # Turned away before the handshake completes, so an unauthenticated
+            # peer never holds an open socket. uvicorn answers this with HTTP
+            # 403 and the browser reports a plain connection failure.
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
 
         # Rooms are addressed by slug and have to exist first. Without this
         # check any string in the path spins up an ad-hoc room inside the
         # connection registry, so a typo silently becomes a private channel.
-        if await crud_room.get_by_slug(db, room_slug) is None:
-            await websocket.close(code=WS_ROOM_NOT_FOUND)
-            return
+        room = await crud_room.get_by_slug(db, room_slug)
 
         # Identity always comes from the verified token, never from the payload,
         # so a client cannot broadcast under someone else's name. Read while the
         # session is still open: afterwards the instance is detached.
         username = user.username
+
+    if room is None:
+        # Accepted first on purpose. A close code sent before the handshake
+        # completes never reaches a browser -- uvicorn turns it into HTTP 403
+        # and the client only ever sees 1006, indistinguishable from the server
+        # being down. The token is already verified here, so opening the socket
+        # just to name the reason gives nothing away.
+        await websocket.accept()
+        await websocket.close(code=WS_ROOM_NOT_FOUND)
+        return
 
     await manager.connect(websocket, room_slug)
 
