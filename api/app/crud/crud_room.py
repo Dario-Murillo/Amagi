@@ -10,6 +10,11 @@ async def get(db: AsyncSession, room_id: int) -> Room | None:
     return result.scalars().first()
 
 
+async def get_by_slug(db: AsyncSession, slug: str) -> Room | None:
+    result = await db.execute(select(Room).where(Room.slug == slug))
+    return result.scalars().first()
+
+
 async def get_by_name(db: AsyncSession, name: str) -> Room | None:
     result = await db.execute(select(Room).where(Room.name == name))
     return result.scalars().first()
@@ -21,7 +26,7 @@ async def get_all(db: AsyncSession) -> list[Room]:
 
 
 async def create(db: AsyncSession, room_in: RoomCreate) -> Room:
-    room = Room(name=room_in.name)
+    room = Room(slug=room_in.slug, name=room_in.name)
     db.add(room)
     await db.flush()
     await db.refresh(room)

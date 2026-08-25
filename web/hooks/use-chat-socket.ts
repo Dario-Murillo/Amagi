@@ -4,6 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { WS_BASE } from "@/lib/config";
 import type { ChatMessage, ServerFrame, Session, WsStatus } from "@/lib/types";
 
+// Mirrors WS_ROOM_NOT_FOUND in the API: the slug reached no room, as opposed to
+// the 1008 the server sends when it rejects the token.
+const WS_ROOM_NOT_FOUND = 4004;
+
 function formatTime(iso?: string): string {
   if (!iso) return "";
   const date = new Date(iso);
@@ -87,10 +91,14 @@ export function useChatSocket(roomId: string, session: Session) {
       });
     };
 
-    socket.onclose = () => {
+    socket.onclose = (event) => {
       if (disposed) return;
       setStatus("disconnected");
-      appendSystem("Disconnected from room.");
+      appendSystem(
+        event.code === WS_ROOM_NOT_FOUND
+          ? "That room does not exist on the server."
+          : "Disconnected from room.",
+      );
     };
 
     socket.onerror = () => {
