@@ -190,6 +190,8 @@ messages      → id, text, created_at, user_id (FK), room_id (FK)
 
 **Async throughout** — `create_async_engine` + `asyncpg` driver. Never use `psycopg2` or sync SQLAlchemy here, it blocks the event loop.
 
+**A WebSocket handshake does not use `get_db`** — a WebSocket handler that declares `DbSession` holds that pooled connection for as long as the socket stays open, so idle chatters exhaust the pool. `app/api/deps.py` exposes `ws_session()`, an `async with` scoped to the handshake: the endpoint authenticates the token and resolves the room inside it, and the session is closed before the receive loop starts.
+
 **The request transaction belongs to `get_db`** — CRUD functions call `flush()` to obtain generated ids but never `commit()`. The `get_db` dependency commits once when the request succeeds and rolls back on any exception.
 
 **Alembic owns schema** — never use `Base.metadata.create_all()` alongside Alembic in application code. Migrations are run manually before starting the server. The test suite is the one exception: it builds a throwaway SQLite database straight from the metadata, because the migrations carry Postgres-specific types.

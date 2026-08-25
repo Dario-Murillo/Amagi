@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from typing import Annotated, AsyncGenerator
 
 from fastapi import Depends, HTTPException, status
@@ -24,6 +25,21 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 
 DbSession = Annotated[AsyncSession, Depends(get_db)]
+
+
+@asynccontextmanager
+async def ws_session() -> AsyncGenerator[AsyncSession, None]:
+    """A session scoped to a WebSocket handshake rather than to the socket.
+
+    A WebSocket handler that declares `DbSession` holds that connection for the
+    entire life of the socket, so N idle chatters pin N pooled connections and
+    the pool is exhausted long before the process is. Only the handshake reads
+    the database, so it borrows a session and hands it straight back.
+
+    Read-only by design: unlike `get_db` there is nothing here to commit.
+    """
+    async with AsyncSessionLocal() as session:
+        yield session
 
 
 async def get_current_user(

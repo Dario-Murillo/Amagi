@@ -2,7 +2,7 @@ import json
 
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect, status
 
-from app.api.deps import DbSession, get_current_user_ws
+from app.api.deps import get_current_user_ws, ws_session
 from app.crud import crud_room
 from app.services.connection_manager import manager
 from app.utils.time import utcnow
@@ -18,26 +18,31 @@ router = APIRouter(tags=["websocket"])
 async def websocket_endpoint(
     websocket: WebSocket,
     room_slug: str,
-    db: DbSession,
     token: str = Query(...),
 ):
-    user = await get_current_user_ws(token, db)
+    # The handshake is the only part of a socket's life that reads the database.
+    # Declaring `DbSession` here instead would hold a pooled connection for as
+    # long as the user stays connected, doing nothing.
+    async with ws_session() as db:
+        user = await get_current_user_ws(token, db)
 
-    if user is None:
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-        return
+        if user is None:
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
 
-    # Rooms are addressed by slug and have to exist first. Without this check any
-    # string in the path spins up an ad-hoc room inside the connection registry,
-    # so a typo silently becomes a private channel.
-    if await crud_room.get_by_slug(db, room_slug) is None:
-        await websocket.close(code=WS_ROOM_NOT_FOUND)
-        return
+        # Rooms are addressed by slug and have to exist first. Without this
+        # check any string in the path spins up an ad-hoc room inside the
+        # connection registry, so a typo silently becomes a private channel.
+        if await crud_room.get_by_slug(db, room_slug) is None:
+            await websocket.close(code=WS_ROOM_NOT_FOUND)
+            return
+
+        # Identity always comes from the verified token, never from the payload,
+        # so a client cannot broadcast under someone else's name. Read while the
+        # session is still open: afterwards the instance is detached.
+        username = user.username
 
     await manager.connect(websocket, room_slug)
-    # Identity always comes from the verified token, never from the payload,
-    # so a client cannot broadcast under someone else's name.
-    username = user.username
 
     try:
         while True:
