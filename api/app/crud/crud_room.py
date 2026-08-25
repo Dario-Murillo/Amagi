@@ -26,7 +26,12 @@ async def get_all(db: AsyncSession) -> list[Room]:
 
 
 async def create(db: AsyncSession, room_in: RoomCreate) -> Room:
-    room = Room(slug=room_in.slug, name=room_in.name)
+    room = Room(
+        slug=room_in.slug,
+        name=room_in.name,
+        topic=room_in.topic,
+        description=room_in.description,
+    )
     db.add(room)
     await db.flush()
     await db.refresh(room)
