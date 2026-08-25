@@ -1,4 +1,8 @@
+import logging
+
 from fastapi import WebSocket
+
+logger = logging.getLogger(__name__)
 
 
 class ConnectionManager:
@@ -11,25 +15,42 @@ class ConnectionManager:
     def __init__(self):
         self._active_connections: dict[str, list[WebSocket]] = {}
 
-    async def connect(self, websocket: WebSocket, room_id: str):
+    async def connect(self, websocket: WebSocket, room_slug: str):
         await websocket.accept()
-        if room_id not in self._active_connections:
-            self._active_connections[room_id] = []
-        self._active_connections[room_id].append(websocket)
+        if room_slug not in self._active_connections:
+            self._active_connections[room_slug] = []
+        self._active_connections[room_slug].append(websocket)
 
-    def disconnect(self, websocket: WebSocket, room_id: str):
-        self._active_connections[room_id].remove(websocket)
+    def disconnect(self, websocket: WebSocket, room_slug: str):
+        """Unregister a socket. Safe to call for a socket or a room that is
+        already gone: a broadcast drops dead sockets on its own, so the handler
+        that owns one routinely asks for a removal that already happened."""
+        connections = self._active_connections.get(room_slug)
 
-        if not self._active_connections[room_id]:
-            del self._active_connections[room_id]
+        if connections is None:
+            return
+
+        if websocket in connections:
+            connections.remove(websocket)
+
+        if not connections:
+            del self._active_connections[room_slug]
 
     async def send_personal_message(self, message: str, websocket: WebSocket):
         await websocket.send_text(message)
 
-    async def broadcast(self, message: str, room_id: str):
-        connections = self._active_connections.get(room_id, [])
-        for connection in connections:
-            await connection.send_text(message)
+    async def broadcast(self, message: str, room_slug: str):
+        # Iterate a copy: a failing socket is unregistered below, and the list
+        # must not change underneath the loop.
+        for connection in list(self._active_connections.get(room_slug, [])):
+            try:
+                await connection.send_text(message)
+            except Exception:
+                # One dead socket must not swallow the message for the rest of
+                # the room. Drop it here rather than waiting for its own handler
+                # to notice, which it may never get the chance to do.
+                logger.warning("dropping a dead socket from room %s", room_slug)
+                self.disconnect(connection, room_slug)
 
 
 manager = ConnectionManager()

@@ -152,18 +152,20 @@ All routes are mounted under the `/api/v1` prefix.
 - `POST /api/v1/users/register` - Register a new user
 - `POST /api/v1/users/token` - Log in and receive a JWT access token
 - `GET /api/v1/users/me` - Retrieve the current authenticated user
-- `GET /api/v1/rooms/` - Get rooms (currently a placeholder)
-- `POST /api/v1/rooms/` - Create a room (currently a placeholder)
-- `GET /api/v1/rooms/{room_id}` - Get room details (currently a placeholder)
-- `DELETE /api/v1/rooms/{room_id}` - Delete a room (currently a placeholder)
+- `GET /api/v1/rooms` - List every room (requires a token)
+- `GET /api/v1/rooms/{room_slug}` - Get one room, 404 if the slug matches none (requires a token)
+
+Rooms are seeded by migration and read-only over the API: there is no endpoint to create or delete one.
 
 ## WebSocket Usage
 
 ```text
-ws://localhost:8000/api/v1/ws/{room_id}?token={JWT_TOKEN}
+ws://localhost:8000/api/v1/ws/{room_slug}?token={JWT_TOKEN}
 ```
 
-Replace `{room_id}` with the room identifier and `{JWT_TOKEN}` with a valid JWT obtained from `/api/v1/users/token`. The client sends a join event after connecting and then sends message payloads as JSON.
+Replace `{room_slug}` with a room's slug — `general`, `tech`, `random`, `ideas` or `help` — and `{JWT_TOKEN}` with a valid JWT obtained from `/api/v1/users/token`. The client sends a join event after connecting and then sends message payloads as JSON.
+
+A slug no room answers to closes the socket with the application code `4004`; a rejected token is refused at the handshake and never opens one.
 
 ## Example Auth Flow
 

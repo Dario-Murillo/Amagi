@@ -32,7 +32,7 @@ export type ServerFrame = {
   event?: "disconnect";
   username?: string;
   message?: string;
-  room_id?: string;
+  room_slug?: string;
   timestamp?: string;
   client_id?: string;
 };

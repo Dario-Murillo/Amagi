@@ -23,9 +23,9 @@ function formatTime(iso?: string): string {
  *
  * Messages and members accumulate for the life of the component and are never
  * cleared, so the caller must remount on room change — render it with
- * `key={room.slug}` — rather than swapping the `roomId` argument under it.
+ * `key={room.slug}` — rather than swapping the `roomSlug` argument under it.
  */
-export function useChatSocket(roomId: string, session: Session) {
+export function useChatSocket(roomSlug: string, session: Session) {
   const { token, username } = session;
 
   const [status, setStatus] = useState<WsStatus>("connecting");
@@ -49,7 +49,7 @@ export function useChatSocket(roomId: string, session: Session) {
     // The token rides as a query param since the WS handshake cannot carry an
     // Authorization header.
     const socket = new WebSocket(
-      `${WS_BASE}/ws/${roomId}?token=${encodeURIComponent(token)}`,
+      `${WS_BASE}/ws/${roomSlug}?token=${encodeURIComponent(token)}`,
     );
     socketRef.current = socket;
 
@@ -115,7 +115,7 @@ export function useChatSocket(roomId: string, session: Session) {
       socketRef.current = null;
       socket.close();
     };
-  }, [roomId, token, username]);
+  }, [roomSlug, token, username]);
 
   const send = useCallback(
     (text: string) => {
@@ -129,7 +129,6 @@ export function useChatSocket(roomId: string, session: Session) {
           type: "message",
           username,
           message: text,
-          room_id: roomId,
           timestamp,
         }),
       );
@@ -148,7 +147,9 @@ export function useChatSocket(roomId: string, session: Session) {
 
       return true;
     },
-    [roomId, username],
+    // `send` no longer names the room: the server routes on the socket's own
+    // path, so there was nothing left for it to read here.
+    [username],
   );
 
   return { status, messages, members, send };

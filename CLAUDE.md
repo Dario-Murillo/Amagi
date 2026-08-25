@@ -160,22 +160,26 @@ Every route is mounted under `settings.api_v1_prefix` (`/api/v1`), including the
 
 ## WebSocket Protocol
 
-**Connection URL:** `ws://localhost:8000/api/v1/ws/{room_id}?token={jwt}`
+**Connection URL:** `ws://localhost:8000/api/v1/ws/{room_slug}?token={jwt}`
 
 **Client → Server messages (JSON):**
 ```json
 { "type": "join", "username": "ghost_99" }
-{ "type": "message", "message": "hello", "room_id": "general" }
+{ "type": "message", "message": "hello" }
 ```
 
 **Server → Client broadcasts (JSON):**
 ```json
-{ "type": "join", "username": "ghost_99", "room_id": "general", "timestamp": "..." }
-{ "type": "message", "username": "ghost_99", "message": "hello", "room_id": "general", "timestamp": "..." }
-{ "event": "disconnect", "username": "ghost_99", "room_id": "general", "timestamp": "..." }
+{ "type": "join", "username": "ghost_99", "room_slug": "general", "timestamp": "..." }
+{ "type": "message", "username": "ghost_99", "message": "hello", "room_slug": "general", "timestamp": "..." }
+{ "event": "disconnect", "username": "ghost_99", "room_slug": "general", "timestamp": "..." }
 ```
 
-Username in all server messages comes from the verified JWT, not from client payload — clients cannot spoof identity.
+Username in all server messages comes from the verified JWT, not from client payload — clients cannot spoof identity. The room is likewise taken from the path, never from the payload, so a client-supplied room field would be decoration: `room_slug` travels server → client only.
+
+**`room_slug`, not `room_id`.** Everything outside the database addresses a room by its slug. `room_id` is reserved for the integer foreign keys in `messages` and `room_members` that point at `rooms.id`.
+
+**Malformed input is ignored.** A frame that is not valid JSON, or that is valid JSON but not an object, is skipped and the connection stays open — it used to raise straight out of the handler, skipping cleanup and leaving a registered socket nobody was reading. The handler's cleanup lives in a `finally`, so every exit from the receive loop unregisters the socket; `ConnectionManager.disconnect` is idempotent because a broadcast drops dead sockets itself, and the owning handler then asks for a removal that already happened.
 
 **Close codes.** A rejected token is refused before the handshake completes, so an unauthenticated peer never holds an open socket; uvicorn turns that into an HTTP 403 and the browser only sees a failed connection. An unknown room slug is different: the socket is accepted first and *then* closed with the application code `4004`, because a code sent before the handshake completes never reaches the browser. Any check that needs to report a reason to the client has to accept first.
 
@@ -215,8 +219,6 @@ messages      → id, text, created_at, user_id (FK), room_id (FK)
 ## Known Gaps
 
 - **Messages are never persisted.** The WebSocket handler broadcasts and forgets; the `messages` table is unused.
-- **`broadcast()` has no per-socket error handling.** One dead socket raises and the remaining connections in that room miss the message.
-- **Only `WebSocketDisconnect` is caught.** Malformed non-JSON input escapes the handler without cleanup, leaving a stale socket registered in the room.
 - **Debug echo.** The handler still replies `You wrote: {data}` as plain text; the frontend fails to parse it as JSON and silently drops it.
 - **No presence roster.** `members` in the frontend is only filled from live `join` events, so joining an already-populated room shows an empty member list.
 
