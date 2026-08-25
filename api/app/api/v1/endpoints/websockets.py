@@ -58,7 +58,18 @@ async def websocket_endpoint(
     try:
         while True:
             raw_data = await websocket.receive_text()
-            data = json.loads(raw_data)
+
+            try:
+                data = json.loads(raw_data)
+            except json.JSONDecodeError:
+                # This used to escape the handler entirely, skipping the cleanup
+                # below and leaving a registered socket nobody was reading.
+                continue
+
+            # Valid JSON is not necessarily an object: `"hello"` parses fine and
+            # has no `.get`.
+            if not isinstance(data, dict):
+                continue
 
             if data.get("type") == "join":
                 await manager.broadcast(
@@ -66,8 +77,7 @@ async def websocket_endpoint(
                         {
                             "type": "join",
                             "username": username,
-                            # Wire field keeps its name; the value is the slug.
-                            "room_id": room_slug,
+                            "room_slug": room_slug,
                             "timestamp": utcnow().isoformat(),
                         }
                     ),
@@ -82,7 +92,7 @@ async def websocket_endpoint(
                         "type": "message",
                         "username": username,
                         "message": data.get("message"),
-                        "room_id": room_slug,
+                        "room_slug": room_slug,
                         "timestamp": utcnow().isoformat(),
                     }
                 ),
@@ -90,13 +100,18 @@ async def websocket_endpoint(
             )
 
     except WebSocketDisconnect:
+        pass
+    finally:
+        # In a `finally` rather than in the handler above: any way out of that
+        # loop has to unregister the socket, or the room keeps broadcasting into
+        # a connection that is no longer there.
         manager.disconnect(websocket, room_slug)
         await manager.broadcast(
             json.dumps(
                 {
                     "event": "disconnect",
                     "username": username,
-                    "room_id": room_slug,
+                    "room_slug": room_slug,
                     "timestamp": utcnow().isoformat(),
                 }
             ),

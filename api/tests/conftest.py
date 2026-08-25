@@ -16,6 +16,7 @@ from app.core.config import settings  # noqa: E402
 from app.core.database import AsyncSessionLocal, Base, engine  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models.room import Room  # noqa: E402
+from app.services.connection_manager import manager  # noqa: E402
 
 # The production schema is owned by Alembic, but its migrations carry
 # Postgres-specific types, so the throwaway SQLite test database is built
@@ -37,6 +38,15 @@ async def client():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         yield c
+
+
+@pytest.fixture(autouse=True)
+def empty_rooms():
+    """The connection registry is a module-level singleton, so a socket left
+    behind by one test would poison the broadcasts of the next. Clearing it
+    keeps a leak showing up as its own test failing rather than as an unrelated
+    one failing mysteriously."""
+    manager._active_connections.clear()
 
 
 @pytest.fixture

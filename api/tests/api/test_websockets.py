@@ -104,7 +104,7 @@ async def test_the_broadcast_username_comes_from_the_token(
 
     assert frame["type"] == "join"
     assert frame["username"] == "ghost_99"
-    assert frame["room_id"] == "general"
+    assert frame["room_slug"] == "general"
 
 
 async def test_a_message_reaches_the_other_client_in_the_room(
@@ -154,3 +154,46 @@ async def test_an_idle_socket_holds_no_pooled_connection(
         await join(ws)
 
         assert engine.pool.checkedout() == 0
+
+
+async def test_a_malformed_frame_does_not_kill_the_connection(ws_client, make_token):
+    """Non-JSON input used to raise straight out of the handler, skipping the
+    cleanup and leaving a registered socket nobody was reading."""
+    author = await make_token("ghost_99")
+    listener = await make_token("kira")
+
+    async with open_socket(ws_client, "general", author) as sender:
+        await join(sender)
+
+        async with open_socket(ws_client, "general", listener) as receiver:
+            await join(receiver)
+
+            await sender.send_text("this is not json at all")
+            await sender.send_text(json.dumps("valid json, but not an object"))
+
+            # The socket is still live and still routing.
+            await sender.send_text(json.dumps({"type": "message", "message": "hola"}))
+            frame = json.loads(await receiver.receive_text(timeout=2))
+
+    assert frame["type"] == "message"
+    assert frame["message"] == "hola"
+
+
+async def test_leaving_the_room_is_announced_to_the_others(ws_client, make_token):
+    """The cleanup lives in a `finally`, so every way out of the loop reaches
+    it, not just a clean disconnect."""
+    leaver = await make_token("ghost_99")
+    stayer = await make_token("kira")
+
+    async with open_socket(ws_client, "general", stayer) as receiver:
+        await join(receiver)
+
+        async with open_socket(ws_client, "general", leaver) as leaving:
+            await join(leaving)
+
+        # Drain the join the leaver produced, then read its departure.
+        await receiver.receive_text(timeout=2)
+        frame = json.loads(await receiver.receive_text(timeout=2))
+
+    assert frame["event"] == "disconnect"
+    assert frame["username"] == "ghost_99"
