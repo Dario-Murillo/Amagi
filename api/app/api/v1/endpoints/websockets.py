@@ -1,6 +1,6 @@
 import json
 
-from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect, status
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
 
 from app.api.deps import get_current_user_ws, ws_session
 from app.crud import crud_room
@@ -11,15 +11,46 @@ from app.utils.time import utcnow
 # token was rejected", and the frontend has to tell the two apart.
 WS_ROOM_NOT_FOUND = 4004
 
+# The token rides in `Sec-WebSocket-Protocol` as `bearer, <jwt>`. Every accept
+# has to echo this back, or the browser fails the connection on a subprotocol
+# mismatch -- including the accept that exists only to report WS_ROOM_NOT_FOUND.
+WS_BEARER_SUBPROTOCOL = "bearer"
+
+
+def bearer_token(websocket: WebSocket) -> str | None:
+    """The access token offered on the handshake, or None if it is not there.
+
+    A browser cannot set request headers on a WebSocket handshake, but it can
+    offer subprotocols, and those travel as a header. Putting the token there
+    instead of in the query string keeps it out of uvicorn's access log and out
+    of every proxy trail in front of it.
+    """
+    # The header is one comma-separated list, and not every ASGI server strips
+    # the space after the comma when it splits it -- a token arriving as
+    # " eyJhbG..." fails to verify for no visible reason.
+    subprotocols = [
+        offered.strip() for offered in websocket.scope.get("subprotocols", [])
+    ]
+
+    if len(subprotocols) != 2 or subprotocols[0] != WS_BEARER_SUBPROTOCOL:
+        return None
+
+    return subprotocols[1]
+
+
 router = APIRouter(tags=["websocket"])
 
 
 @router.websocket("/ws/{room_slug}")
-async def websocket_endpoint(
-    websocket: WebSocket,
-    room_slug: str,
-    token: str = Query(...),
-):
+async def websocket_endpoint(websocket: WebSocket, room_slug: str):
+    token = bearer_token(websocket)
+
+    if token is None:
+        # Refused before any database work: an unauthenticated peer should not
+        # cost a pooled connection either.
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+
     # The handshake is the only part of a socket's life that reads the database.
     # Declaring `DbSession` here instead would hold a pooled connection for as
     # long as the user stays connected, doing nothing.
@@ -49,11 +80,11 @@ async def websocket_endpoint(
         # and the client only ever sees 1006, indistinguishable from the server
         # being down. The token is already verified here, so opening the socket
         # just to name the reason gives nothing away.
-        await websocket.accept()
+        await websocket.accept(subprotocol=WS_BEARER_SUBPROTOCOL)
         await websocket.close(code=WS_ROOM_NOT_FOUND)
         return
 
-    await manager.connect(websocket, room_slug)
+    await manager.connect(websocket, room_slug, subprotocol=WS_BEARER_SUBPROTOCOL)
 
     try:
         while True:

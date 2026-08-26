@@ -11,6 +11,12 @@ import type { ChatMessage, ServerFrame, Session, WsStatus } from "@/lib/types";
 // told apart here and falls through to the generic message below.
 const WS_ROOM_NOT_FOUND = 4004;
 
+// The token rides in `Sec-WebSocket-Protocol` rather than in the query string,
+// which is the only header a browser can influence on a WebSocket handshake.
+// A token in the URL ends up in the server's access log and in every proxy in
+// front of it. Must match WS_BEARER_SUBPROTOCOL in the API.
+const WS_BEARER_SUBPROTOCOL = "bearer";
+
 function formatTime(iso?: string): string {
   if (!iso) return "";
   const date = new Date(iso);
@@ -46,11 +52,10 @@ export function useChatSocket(roomSlug: string, session: Session) {
     const appendSystem = (text: string) =>
       append({ author: "", text, time: "", own: false, system: true });
 
-    // The token rides as a query param since the WS handshake cannot carry an
-    // Authorization header.
-    const socket = new WebSocket(
-      `${WS_BASE}/ws/${roomSlug}?token=${encodeURIComponent(token)}`,
-    );
+    const socket = new WebSocket(`${WS_BASE}/ws/${roomSlug}`, [
+      WS_BEARER_SUBPROTOCOL,
+      token,
+    ]);
     socketRef.current = socket;
 
     socket.onopen = () => {

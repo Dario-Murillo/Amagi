@@ -15,8 +15,12 @@ class ConnectionManager:
     def __init__(self):
         self._active_connections: dict[str, list[WebSocket]] = {}
 
-    async def connect(self, websocket: WebSocket, room_slug: str):
-        await websocket.accept()
+    async def connect(
+        self, websocket: WebSocket, room_slug: str, subprotocol: str | None = None
+    ):
+        # The subprotocol has to be echoed back or the browser rejects the
+        # handshake; it is how the token reached us in the first place.
+        await websocket.accept(subprotocol=subprotocol)
         if room_slug not in self._active_connections:
             self._active_connections[room_slug] = []
         self._active_connections[room_slug].append(websocket)

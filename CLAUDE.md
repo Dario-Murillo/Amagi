@@ -155,12 +155,18 @@ Every route is mounted under `settings.api_v1_prefix` (`/api/v1`), including the
 - Passwords hashed with **Argon2** via `pwdlib`
 - Tokens are **JWT** signed with `SECRET_KEY`, containing `sub` (user ID) and `exp`
 - REST endpoints use the `CurrentUser` annotated dependency from `app/api/deps.py`, which reads from the `Authorization: Bearer` header via `oauth2_scheme`
-- WebSocket endpoints can't use the Authorization header — token is passed as a query param `?token=...` and verified via `get_current_user_ws(token, db)`
+- WebSocket endpoints can't use the Authorization header, so the token is offered as a subprotocol — `new WebSocket(url, ["bearer", token])` — and read from `Sec-WebSocket-Protocol` by `bearer_token(websocket)`, then verified via `get_current_user_ws(token, db)`. It is deliberately *not* a query param: uvicorn writes the full URL into its access log, and so does every proxy in front of it.
 - Token expiry is controlled by `ACCESS_TOKEN_EXPIRE_MINUTES` (default: 30)
 
 ## WebSocket Protocol
 
-**Connection URL:** `ws://localhost:8000/api/v1/ws/{room_slug}?token={jwt}`
+**Connection URL:** `ws://localhost:8000/api/v1/ws/{room_slug}`, with the token offered as a subprotocol:
+
+```js
+new WebSocket(`${WS_BASE}/ws/${roomSlug}`, ["bearer", token]);
+```
+
+**Every `accept()` has to echo the subprotocol back** (`accept(subprotocol="bearer")`) or the browser fails the connection on a mismatch — including the accept that exists only to report `4004`. Note also that the header is one comma-separated list and not every ASGI server strips the space after the comma, so `bearer_token()` strips each offered value before comparing.
 
 **Client → Server messages (JSON):**
 ```json

@@ -7,7 +7,10 @@ from contextlib import asynccontextmanager
 import pytest
 from httpx_ws import WebSocketDisconnect, aconnect_ws
 
-from app.api.v1.endpoints.websockets import WS_ROOM_NOT_FOUND
+from app.api.v1.endpoints.websockets import (
+    WS_BEARER_SUBPROTOCOL,
+    WS_ROOM_NOT_FOUND,
+)
 from app.core.database import engine
 
 WS_POLICY_VIOLATION = 1008
@@ -18,11 +21,19 @@ pytestmark = pytest.mark.usefixtures("seeded_rooms")
 
 
 @asynccontextmanager
-async def open_socket(ws_client, slug: str, token: str | None = None):
-    """Opens a room socket, client and all, inside the caller's own task."""
-    query = f"?token={token}" if token is not None else ""
+async def open_socket(
+    ws_client, slug: str, token: str | None = None, *, query: str = ""
+):
+    """Opens a room socket, client and all, inside the caller's own task.
+
+    The token is offered as a subprotocol, the way the browser client does it,
+    so it never reaches the URL.
+    """
+    subprotocols = [WS_BEARER_SUBPROTOCOL, token] if token is not None else None
     async with ws_client() as client:
-        async with aconnect_ws(f"http://test/api/v1/ws/{slug}{query}", client) as ws:
+        async with aconnect_ws(
+            f"http://test/api/v1/ws/{slug}{query}", client, subprotocols=subprotocols
+        ) as ws:
             yield ws
 
 
@@ -37,14 +48,16 @@ def _find(error: BaseException, kind: type) -> BaseException | None:
     return None
 
 
-async def rejected_close_code(ws_client, slug: str, token: str | None = None) -> int:
+async def rejected_close_code(
+    ws_client, slug: str, token: str | None = None, *, query: str = ""
+) -> int:
     """The code the server turned the handshake away with.
 
     The failure travels out through the transport's anyio task group, so it can
     arrive wrapped in an ExceptionGroup rather than on its own.
     """
     try:
-        async with open_socket(ws_client, slug, token):
+        async with open_socket(ws_client, slug, token, query=query):
             pass
     except BaseException as raised:
         disconnect = _find(raised, WebSocketDisconnect)
@@ -78,8 +91,21 @@ async def test_an_invalid_token_is_turned_away(ws_client):
 
 
 async def test_a_missing_token_is_turned_away(ws_client):
-    """`Query(...)` rejects the handshake before the handler ever runs."""
-    await rejected_close_code(ws_client, "general")
+    code = await rejected_close_code(ws_client, "general")
+
+    assert code == WS_POLICY_VIOLATION
+
+
+async def test_a_token_in_the_query_string_no_longer_authenticates(
+    ws_client, make_token
+):
+    """The old mechanism, which leaked the token into every access log, must not
+    quietly keep working alongside the new one."""
+    token = await make_token("ghost_99")
+
+    code = await rejected_close_code(ws_client, "general", query=f"?token={token}")
+
+    assert code == WS_POLICY_VIOLATION
 
 
 async def test_an_unknown_room_is_reported_with_its_own_close_code(

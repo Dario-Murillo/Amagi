@@ -160,10 +160,18 @@ Rooms are seeded by migration and read-only over the API: there is no endpoint t
 ## WebSocket Usage
 
 ```text
-ws://localhost:8000/api/v1/ws/{room_slug}?token={JWT_TOKEN}
+ws://localhost:8000/api/v1/ws/{room_slug}
 ```
 
-Replace `{room_slug}` with a room's slug — `general`, `tech`, `random`, `ideas` or `help` — and `{JWT_TOKEN}` with a valid JWT obtained from `/api/v1/users/token`. The client sends a join event after connecting and then sends message payloads as JSON.
+Replace `{room_slug}` with a room's slug — `general`, `tech`, `random`, `ideas` or `help`.
+
+The access token is **not** a query parameter: it is offered as a subprotocol, so it travels in the `Sec-WebSocket-Protocol` header instead of in the URL, and never reaches the server's access log.
+
+```js
+new WebSocket("ws://localhost:8000/api/v1/ws/general", ["bearer", JWT_TOKEN]);
+```
+
+The client sends a join event after connecting and then sends message payloads as JSON.
 
 A slug no room answers to closes the socket with the application code `4004`; a rejected token is refused at the handshake and never opens one.
 
@@ -190,15 +198,14 @@ Content-Type: application/x-www-form-urlencoded
 username=alice&password=password123
 ```
 
-3. Use the returned `access_token` for WebSocket auth:
+3. Use the returned `access_token` for WebSocket auth, offered as a subprotocol:
 
-```text
-ws://localhost:8000/api/v1/ws/room1?token=eyJhbGciOiJI...
+```js
+new WebSocket("ws://localhost:8000/api/v1/ws/general", ["bearer", "eyJhbGciOiJI..."]);
 ```
 
 ## Notes
 
-- The `rooms` endpoints are still placeholders; the queries they need already live in `app/crud/crud_room.py`.
 - Database URL and secret key are loaded from `.env` and validated at startup.
 - Allowed CORS origins are configured in `app/core/config.py` and cover port 3000 on `localhost`, `127.0.0.1`, and `[::1]`.
 
