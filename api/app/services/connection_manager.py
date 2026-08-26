@@ -40,9 +40,6 @@ class ConnectionManager:
         if not connections:
             del self._active_connections[room_slug]
 
-    async def send_personal_message(self, message: str, websocket: WebSocket):
-        await websocket.send_text(message)
-
     async def broadcast(self, message: str, room_slug: str):
         # Iterate a copy: a failing socket is unregistered below, and the list
         # must not change underneath the loop.

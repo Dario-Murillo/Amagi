@@ -223,3 +223,17 @@ async def test_leaving_the_room_is_announced_to_the_others(ws_client, make_token
 
     assert frame["event"] == "disconnect"
     assert frame["username"] == "ghost_99"
+
+
+async def test_the_server_sends_no_plain_text_echo(ws_client, token):
+    """The handler used to reply `You wrote: {...}` in plain text to the sender,
+    which the client could do nothing with but silently drop."""
+    async with open_socket(ws_client, "general", token) as ws:
+        await join(ws)
+        await ws.send_text(json.dumps({"type": "message", "message": "hola"}))
+
+        # The very next frame is the broadcast, with nothing in front of it.
+        frame = json.loads(await ws.receive_text(timeout=2))
+
+    assert frame["type"] == "message"
+    assert frame["message"] == "hola"

@@ -68,8 +68,8 @@ export function useChatSocket(roomSlug: string, session: Session) {
       try {
         frame = JSON.parse(event.data as string);
       } catch {
-        // The handler still emits a plain-text debug echo; ignore anything
-        // that is not JSON.
+        // Defensive: every frame the server sends is JSON, but this parses
+        // input from the network and must not throw inside an event handler.
         return;
       }
 
@@ -91,7 +91,7 @@ export function useChatSocket(roomSlug: string, session: Session) {
       if (frame.username === username) return;
 
       append({
-        author: frame.username ?? `user_${frame.client_id}`,
+        author: frame.username ?? "Someone",
         text: frame.message ?? "",
         time: formatTime(frame.timestamp),
         own: false,

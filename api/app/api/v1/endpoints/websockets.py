@@ -116,7 +116,6 @@ async def websocket_endpoint(websocket: WebSocket, room_slug: str):
                 )
                 continue
 
-            await manager.send_personal_message(f"You wrote: {data}", websocket)
             await manager.broadcast(
                 json.dumps(
                     {

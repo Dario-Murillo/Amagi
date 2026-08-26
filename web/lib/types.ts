@@ -34,7 +34,6 @@ export type ServerFrame = {
   message?: string;
   room_slug?: string;
   timestamp?: string;
-  client_id?: string;
 };
 
 export type RoomsState =

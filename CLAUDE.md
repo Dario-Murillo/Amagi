@@ -225,7 +225,8 @@ messages      → id, text, created_at, user_id (FK), room_id (FK)
 ## Known Gaps
 
 - **Messages are never persisted.** The WebSocket handler broadcasts and forgets; the `messages` table is unused.
-- **Debug echo.** The handler still replies `You wrote: {data}` as plain text; the frontend fails to parse it as JSON and silently drops it.
+- **Own messages are recognised by username.** `useChatSocket` drops a broadcast whose `username` matches the session, so the same account open in two tabs never sees its own messages arrive in the other one. A per-message correlation id would replace the comparison.
+- **Usernames are case-sensitive accounts.** `Ghost_99` and `ghost_99` are two different rows in `users`, and neither login nor registration normalises or trims. The session now stores the name exactly as typed, which is what login proves is correct, but the two-accounts hazard is untouched.
 - **No presence roster.** `members` in the frontend is only filled from live `join` events, so joining an already-populated room shows an empty member list.
 
 ## What's Pending

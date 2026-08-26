@@ -58,9 +58,13 @@ export function useAuth() {
         return false;
       }
 
+      // Stored exactly as typed. The server looks usernames up case-sensitively,
+      // so a login that succeeded proves this matches the stored account;
+      // lower-casing it here made the local copy disagree with the name the
+      // server broadcasts, and every message came back looking like a stranger's.
       const next: Session = {
         token: data.access_token,
-        username: username.toLowerCase(),
+        username,
       };
 
       saveSession(next);
