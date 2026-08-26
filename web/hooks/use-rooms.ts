@@ -2,12 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { fetchRooms } from "@/lib/rooms";
-import type { Room } from "@/lib/types";
-
-type RoomsState =
-  | { status: "loading" }
-  | { status: "ready"; rooms: Room[] }
-  | { status: "error"; error: string };
+import type { RoomsState } from "@/lib/types";
 
 /**
  * Loads the room list for the session. This is the app's only data fetch, so it

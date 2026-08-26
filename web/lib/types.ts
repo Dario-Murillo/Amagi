@@ -36,3 +36,8 @@ export type ServerFrame = {
   timestamp?: string;
   client_id?: string;
 };
+
+export type RoomsState =
+  | { status: "loading" }
+  | { status: "ready"; rooms: Room[] }
+  | { status: "error"; error: string };
