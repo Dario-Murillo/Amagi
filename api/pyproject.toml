@@ -3,23 +3,28 @@ name = "amagi"
 version = "0.1.0"
 description = "Amagi - real-time multi-room chat API"
 requires-python = ">=3.11"
+# Bounds follow each package's own compatibility promise: an upper bound on the
+# major version for anything past 1.0, and on the minor version below it, since
+# semver promises nothing about 0.x. This stops a surprise breaking release from
+# arriving on an unrelated `pip install`; it does not pin transitive
+# dependencies, so it is not a substitute for a lock file.
 dependencies = [
-    "fastapi[standard]",
-    "sqlalchemy[asyncio]",
-    "asyncpg",
-    "alembic",
-    "pwdlib[argon2]",
-    "pyjwt",
-    "pydantic-settings",
+    "fastapi[standard]>=0.141,<0.142",
+    "sqlalchemy[asyncio]>=2.0,<3.0",
+    "asyncpg>=0.31,<0.32",
+    "alembic>=1.19,<2.0",
+    "pwdlib[argon2]>=0.3,<0.4",
+    "pyjwt>=2.13,<3.0",
+    "pydantic-settings>=2.15,<3.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest",
-    "pytest-asyncio",
-    "httpx",
-    "httpx-ws",
-    "aiosqlite",
+    "pytest>=9.1,<10.0",
+    "pytest-asyncio>=1.4,<2.0",
+    "httpx>=0.28,<0.29",
+    "httpx-ws>=0.9,<0.10",
+    "aiosqlite>=0.22,<0.23",
 ]
 
 [build-system]
