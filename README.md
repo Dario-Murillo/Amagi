@@ -81,7 +81,13 @@ python -m venv .venv
 pip install -e ".[dev]"
 ```
 
-4. Create a `.env` file in `api/` (see `.env.example`):
+4. Create the database (the name has to match the one in `DATABASE_URL` below):
+
+```powershell
+createdb -U postgres amagi
+```
+
+5. Create a `.env` file in `api/` (see `.env.example`):
 
 ```text
 DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/amagi
@@ -95,7 +101,7 @@ anyone who knows it can forge a token for any account. Generate one with:
 python -c "import secrets; print(secrets.token_urlsafe(32))"
 ```
 
-5. Apply database migrations:
+6. Apply database migrations:
 
 ```powershell
 alembic upgrade head
@@ -116,7 +122,8 @@ cd api
 docker compose up --build
 ```
 
-This starts PostgreSQL and the API together. Migrations still have to be applied against the running database.
+This starts PostgreSQL and the API together, and **the API container applies the
+migrations itself before serving** — there is nothing left to run by hand.
 
 Compose reads `SECRET_KEY` from `api/.env` (or from the shell environment) and
 there is no default: the API container refuses to start if the variable is

@@ -127,6 +127,13 @@ cd api
 docker compose up --build     # brings up Postgres + the API on :8000
 ```
 
+The API image runs `alembic upgrade head` before uvicorn, so the container is
+never up against a schema-less database; a failed migration takes the container
+down rather than leaving a broken API listening. This is safe as a startup step
+only because the app is single-instance by design (`ConnectionManager` is
+in-memory) — with replicas, two containers would race the same upgrade and it
+would have to become a one-shot job instead.
+
 ## Environment Variables
 
 File: `api/.env`
@@ -208,7 +215,7 @@ messages      → id, text, created_at, user_id (FK), room_id (FK)
 
 **The request transaction belongs to `get_db`** — CRUD functions call `flush()` to obtain generated ids but never `commit()`. The `get_db` dependency commits once when the request succeeds and rolls back on any exception.
 
-**Alembic owns schema** — never use `Base.metadata.create_all()` alongside Alembic in application code. Migrations are run manually before starting the server. The test suite is the one exception: it builds a throwaway SQLite database straight from the metadata, because the migrations carry Postgres-specific types.
+**Alembic owns schema** — never use `Base.metadata.create_all()` alongside Alembic in application code. Migrations are run manually before starting the server locally; under Docker the API container runs them itself at startup. The test suite is the one exception: it builds a throwaway SQLite database straight from the metadata, because the migrations carry Postgres-specific types.
 
 **ConnectionManager is in-memory** — works for a single process. Horizontal scaling requires replacing it with Redis Pub/Sub (planned milestone).
 
