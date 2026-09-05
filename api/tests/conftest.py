@@ -17,6 +17,7 @@ from app.core.database import AsyncSessionLocal, Base, engine  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models.room import Room  # noqa: E402
 from app.services.connection_manager import manager  # noqa: E402
+from app.services.rate_limit import login_limiter  # noqa: E402
 
 # The production schema is owned by Alembic, but its migrations carry
 # Postgres-specific types, so the throwaway SQLite test database is built
@@ -38,6 +39,13 @@ async def client():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         yield c
+
+
+@pytest.fixture(autouse=True)
+def fresh_rate_limit():
+    """The login limiter is a module-level singleton, so the attempts one test
+    spends would otherwise count against the next one."""
+    login_limiter.reset()
 
 
 @pytest.fixture(autouse=True)
