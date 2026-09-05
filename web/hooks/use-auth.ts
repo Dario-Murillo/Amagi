@@ -118,10 +118,26 @@ export function useAuth() {
     [login],
   );
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    const token = session?.token;
+
+    if (token) {
+      try {
+        // Revokes this account's tokens server-side. Without it the token stays
+        // valid for the rest of its 30 minutes and logging out is cosmetic.
+        await fetch(`${API_BASE}/users/logout`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      } catch {
+        // The session ends either way: a logout that cannot reach the server
+        // still has to clear the client rather than trap the user signed in.
+      }
+    }
+
     clearSession();
     setError("");
-  }, []);
+  }, [session]);
 
   return {
     session,

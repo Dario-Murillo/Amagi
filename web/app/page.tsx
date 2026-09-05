@@ -30,8 +30,9 @@ export default function Home() {
   }
 
   function handleLogout() {
+    // Unmount the chat first so the socket closes cleanly, then revoke.
     setActiveRoom(null);
-    logout();
+    void logout();
   }
 
   if (activeRoom) {
