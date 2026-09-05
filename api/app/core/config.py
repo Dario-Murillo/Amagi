@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
 
+    # Login attempts allowed per window, counted per client address and per
+    # username. Generous enough that a person retrying a typo never notices.
+    login_max_attempts: int = 10
+    login_window_seconds: int = 60
+
     # Origins allowed to call the API. The frontend is served statically, so the
     # loopback host it is opened with has to match one of these exactly.
     cors_origins: list[str] = [

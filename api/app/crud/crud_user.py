@@ -27,3 +27,9 @@ async def create(db: AsyncSession, user_in: UserCreate) -> User:
     await db.flush()
     await db.refresh(user)
     return user
+
+
+async def bump_token_version(db: AsyncSession, user: User) -> None:
+    """Invalidate every access token already issued for this user."""
+    user.token_version += 1
+    await db.flush()

@@ -60,23 +60,32 @@ async def get_current_user(
 
 
 async def get_current_user_ws(token: str, db: AsyncSession) -> User | None:
-    """WebSocket variant: the handshake cannot carry an Authorization header, so
-    the token arrives as a query param and a rejection closes the socket instead
-    of raising an HTTP error."""
+    """WebSocket variant: the token arrives as a subprotocol rather than in an
+    Authorization header, and a rejection closes the socket instead of raising
+    an HTTP error."""
     return await _user_from_token(token, db)
 
 
 async def _user_from_token(token: str, db: AsyncSession) -> User | None:
-    user_id = verify_access_token(token=token)
-    if user_id is None:
+    claims = verify_access_token(token=token)
+    if claims is None:
         return None
 
     try:
-        user_id_int = int(user_id)
-    except (TypeError, ValueError):
+        user_id = int(claims["sub"])
+    except (KeyError, TypeError, ValueError):
         return None
 
-    return await crud_user.get(db, user_id_int)
+    user = await crud_user.get(db, user_id)
+    if user is None:
+        return None
+
+    # A logout bumps the stored version, stranding every token issued before it.
+    # The row is already loaded, so this costs no extra query.
+    if claims.get("ver") != user.token_version:
+        return None
+
+    return user
 
 
 CurrentUser = Annotated[User, Depends(get_current_user)]

@@ -35,16 +35,18 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
     )
 
 
-def verify_access_token(token: str) -> str | None:
-    """Return the `sub` claim of a valid token, or None if the token is rejected."""
+def verify_access_token(token: str) -> dict | None:
+    """Return the claims of a valid token, or None if the token is rejected.
+
+    The caller needs more than `sub`: `ver` has to be checked against the user
+    row, so the whole payload comes back rather than one claim.
+    """
     try:
-        payload = jwt.decode(
+        return jwt.decode(
             token,
             settings.secret_key.get_secret_value(),
             algorithms=[settings.algorithm],
-            options={"require": ["exp", "sub"]},
+            options={"require": ["exp", "sub", "ver"]},
         )
     except jwt.InvalidTokenError:
         return None
-    else:
-        return payload.get("sub")
