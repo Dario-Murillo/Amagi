@@ -164,6 +164,8 @@ Every route is mounted under `settings.api_v1_prefix` (`/api/v1`), including the
 - REST endpoints use the `CurrentUser` annotated dependency from `app/api/deps.py`, which reads from the `Authorization: Bearer` header via `oauth2_scheme`
 - WebSocket endpoints can't use the Authorization header, so the token is offered as a subprotocol — `new WebSocket(url, ["bearer", token])` — and read from `Sec-WebSocket-Protocol` by `bearer_token(websocket)`, then verified via `get_current_user_ws(token, db)`. It is deliberately *not* a query param: uvicorn writes the full URL into its access log, and so does every proxy in front of it.
 - Token expiry is controlled by `ACCESS_TOKEN_EXPIRE_MINUTES` (default: 30)
+- **Revocation without a denylist.** Every token carries a `ver` claim and every user row a `token_version`; `_user_from_token` compares them, and `POST /users/logout` bumps the row. The user is already loaded there to be returned, so the check costs no extra query, and it survives a restart in a way an in-memory denylist would not. The trade-off is deliberate: it revokes *every* token for that account, so logging out on one device logs out all of them. A socket that was already open is unaffected — authentication happens at the handshake and is never re-checked.
+- **`POST /users/token` is rate limited**, per client address and per username, by the in-memory `login_limiter` (`login_max_attempts` / `login_window_seconds`). The check runs before the password is verified, so a refused attempt costs no Argon2 work — which is the point as much as the brute-force ceiling is. `request.client` is the immediate peer, so behind a proxy every user collapses into one key until uvicorn runs with `--proxy-headers`.
 
 ## WebSocket Protocol
 
@@ -241,4 +243,3 @@ messages      → id, text, created_at, user_id (FK), room_id (FK)
 - Redis Pub/Sub to replace in-memory ConnectionManager
 - Nginx reverse proxy with WebSocket upgrade headers
 - Message history on room join (load last N messages from DB)
-- Logout token blacklisting (currently stateless — logout is client-side only)

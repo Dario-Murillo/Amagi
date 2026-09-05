@@ -157,7 +157,8 @@ By default the client talks to `http://localhost:8000/api/v1`. To point it elsew
 All routes are mounted under the `/api/v1` prefix.
 
 - `POST /api/v1/users/register` - Register a new user
-- `POST /api/v1/users/token` - Log in and receive a JWT access token
+- `POST /api/v1/users/token` - Log in and receive a JWT access token (rate limited)
+- `POST /api/v1/users/logout` - Revoke every access token issued for the account
 - `GET /api/v1/users/me` - Retrieve the current authenticated user
 - `GET /api/v1/rooms` - List every room (requires a token)
 - `GET /api/v1/rooms/{room_slug}` - Get one room, 404 if the slug matches none (requires a token)
