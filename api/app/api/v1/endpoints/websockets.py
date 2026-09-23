@@ -4,7 +4,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
 from pydantic import ValidationError
 
 from app.api.deps import get_current_user_ws, ws_session
-from app.crud import crud_room
+from app.crud import crud_message, crud_room
 from app.schemas.websocket import JoinFrame, client_frame
 from app.services.connection_manager import manager
 from app.utils.time import utcnow
@@ -70,13 +70,15 @@ async def websocket_endpoint(websocket: WebSocket, room_slug: str):
         # check any string in the path spins up an ad-hoc room inside the
         # connection registry, so a typo silently becomes a private channel.
         room = await crud_room.get_by_slug(db, room_slug)
+        room_id = None if room is None else room.id
 
         # Identity always comes from the verified token, never from the payload,
         # so a client cannot broadcast under someone else's name. Read while the
         # session is still open: afterwards the instance is detached.
         username = user.username
+        user_id = user.id
 
-    if room is None:
+    if room_id is None:
         # Accepted first on purpose. A close code sent before the handshake
         # completes never reaches a browser -- uvicorn turns it into HTTP 403
         # and the client only ever sees 1006, indistinguishable from the server
@@ -117,14 +119,27 @@ async def websocket_endpoint(websocket: WebSocket, room_slug: str):
                 )
                 continue
 
+            # Saved before it is broadcast, in a session of its own for the same
+            # reason the handshake has one: nothing holds a pooled connection
+            # while the socket idles. The id travels with the frame so a client
+            # can tell a live copy from the same row in a history page.
+            async with ws_session() as db:
+                saved = await crud_message.create(
+                    db, text=frame.message, user_id=user_id, room_id=room_id
+                )
+                await db.commit()
+
             await manager.broadcast(
                 json.dumps(
                     {
                         "type": "message",
+                        "id": saved.id,
                         "username": username,
-                        "message": frame.message,
+                        "message": saved.text,
                         "room_slug": room_slug,
-                        "timestamp": utcnow().isoformat(),
+                        # The stored time, not a fresh utcnow(): history and the
+                        # live frame have to agree on it.
+                        "timestamp": saved.created_at.isoformat(),
                     }
                 ),
                 room_slug,

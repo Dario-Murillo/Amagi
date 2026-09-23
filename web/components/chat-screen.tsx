@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import { Wordmark } from "@/components/wordmark";
 import { useChatSocket } from "@/hooks/use-chat-socket";
 import { MAX_MESSAGE_LENGTH } from "@/lib/config";
@@ -23,20 +23,58 @@ const STATUS_STYLES: Record<WsStatus, { dot: string; label: string }> = {
 };
 
 export default function ChatScreen({ session, room, onLeave, onLogout }: Props) {
-  const { status, messages, members, send } = useChatSocket(room.slug, session);
+  const { status, messages, members, send, loadOlder } = useChatSocket(
+    room.slug,
+    session,
+  );
   const [text, setText] = useState("");
 
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Whether the reader is at the bottom, so new messages may scroll them.
+  const pinned = useRef(true);
+  const firstKey = useRef<string | undefined>(undefined);
+  const lastHeight = useRef(0);
 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
 
-  useEffect(() => {
+  // A layout effect so the correction lands before paint and the list never
+  // visibly jumps.
+  useLayoutEffect(() => {
     const list = listRef.current;
-    if (list) list.scrollTop = list.scrollHeight;
+    if (!list) return;
+
+    const first = messages[0]?.key;
+    const prepended = first !== firstKey.current;
+
+    if (pinned.current) {
+      // Instant when a whole page arrives, smooth for a single new message.
+      list.scrollTo({
+        top: list.scrollHeight,
+        behavior: prepended ? "instant" : "smooth",
+      });
+    } else if (prepended) {
+      // Older history went in above: shift by what was added, so the rows the
+      // reader was looking at stay where they were.
+      list.scrollTo({
+        top: list.scrollTop + list.scrollHeight - lastHeight.current,
+        behavior: "instant",
+      });
+    }
+
+    firstKey.current = first;
+    lastHeight.current = list.scrollHeight;
   }, [messages]);
+
+  function handleScroll() {
+    const list = listRef.current;
+    if (!list) return;
+
+    pinned.current = list.scrollHeight - list.scrollTop - list.clientHeight < 40;
+    if (list.scrollTop < 40) void loadOlder();
+  }
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -133,7 +171,8 @@ export default function ChatScreen({ session, room, onLeave, onLogout }: Props) 
 
         <div
           ref={listRef}
-          className="scrollbar-slim flex flex-1 flex-col gap-1 overflow-y-auto scroll-smooth p-6"
+          onScroll={handleScroll}
+          className="scrollbar-slim flex flex-1 flex-col gap-1 overflow-y-auto p-6"
         >
           {messages.length === 0 ? (
             <div className="m-auto text-xs italic tracking-[1px] text-muted">
@@ -143,14 +182,14 @@ export default function ChatScreen({ session, room, onLeave, onLogout }: Props) 
             messages.map((message) =>
               message.system ? (
                 <div
-                  key={message.id}
+                  key={message.key}
                   className="animate-fade-in-fast rounded-sharp py-1.5 pl-2.5 pr-2.5 italic opacity-45"
                 >
                   {message.text}
                 </div>
               ) : (
                 <div
-                  key={message.id}
+                  key={message.key}
                   className="flex animate-fade-in-fast gap-3 rounded-sharp px-2.5 py-1.5 transition-colors hover:bg-surface2"
                 >
                   <div className="flex min-w-18 shrink-0 flex-col items-end gap-0.5">
