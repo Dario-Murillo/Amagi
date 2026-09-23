@@ -1,13 +1,17 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
+
+# One page of history: what a room shows on entry, and what each scroll to the
+# top loads before it.
+MESSAGE_PAGE_SIZE = 100
 
 
 class MessageResponse(BaseModel):
-    id: int
-    text: str
-    created_at: datetime
-    user_id: int
-    room_id: int
+    """Same field names as the `message` broadcast, so the client reads history
+    and live frames through one code path."""
 
-    model_config = ConfigDict(from_attributes=True)
+    id: int
+    username: str
+    message: str
+    timestamp: datetime

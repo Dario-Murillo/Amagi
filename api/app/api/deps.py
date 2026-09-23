@@ -36,7 +36,8 @@ async def ws_session() -> AsyncGenerator[AsyncSession, None]:
     the pool is exhausted long before the process is. Only the handshake reads
     the database, so it borrows a session and hands it straight back.
 
-    Read-only by design: unlike `get_db` there is nothing here to commit.
+    Unlike `get_db` it never commits on its own: a caller that writes commits
+    explicitly, which only the message insert does.
     """
     async with AsyncSessionLocal() as session:
         yield session

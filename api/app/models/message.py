@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -9,6 +9,8 @@ from app.utils.time import utcnow
 
 class Message(Base):
     __tablename__ = "messages"
+    # Serves history paging: one room, ids below a cursor, newest first.
+    __table_args__ = (Index("ix_messages_room_id_id", "room_id", "id"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     text: Mapped[str] = mapped_column(String)
