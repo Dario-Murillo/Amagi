@@ -162,6 +162,7 @@ All routes are mounted under the `/api/v1` prefix.
 - `GET /api/v1/users/me` - Retrieve the current authenticated user
 - `GET /api/v1/rooms` - List every room (requires a token)
 - `GET /api/v1/rooms/{room_slug}` - Get one room, 404 if the slug matches none (requires a token)
+- `GET /api/v1/rooms/{room_slug}/messages?before={id}` - One page of history, 100 messages oldest first; omit `before` for the newest page (requires a token)
 
 Rooms are seeded by migration and read-only over the API: there is no endpoint to create or delete one.
 

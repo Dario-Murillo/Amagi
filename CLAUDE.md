@@ -38,7 +38,8 @@ Amagi/
 │   │   │   └── security.py       # Password hashing, JWT create/verify
 │   │   ├── crud/                 # Reusable DB operations
 │   │   │   ├── crud_user.py
-│   │   │   └── crud_room.py
+│   │   │   ├── crud_room.py
+│   │   │   └── crud_message.py   # insert + keyset history pages
 │   │   ├── models/               # SQLAlchemy ORM models, one per table
 │   │   │   ├── user.py
 │   │   │   ├── room.py
@@ -48,7 +49,8 @@ Amagi/
 │   │   │   ├── user.py
 │   │   │   ├── room.py
 │   │   │   ├── message.py
-│   │   │   └── token.py
+│   │   │   ├── token.py
+│   │   │   └── websocket.py      # Incoming frame validation
 │   │   ├── services/             # Business logic and stateful integrations
 │   │   │   └── connection_manager.py  # In-memory WebSocket registry
 │   │   └── utils/
@@ -79,7 +81,9 @@ Amagi/
     │   └── use-chat-socket.ts    # Room socket lifecycle, messages, roster
     └── lib/
         ├── config.ts             # API_BASE / WS_BASE
-        ├── rooms.ts              # fetchRooms() against GET /rooms
+        ├── rooms.ts              # fetchRooms(), fetchMessages()
+        ├── messages.ts           # merge(): dedupe by key, order by time (pure)
+        ├── messages.check.mjs    # `node lib/messages.check.mjs`
         ├── session-store.ts      # localStorage session as an external store
         ├── errors.ts             # Flattens FastAPI `detail` into one line
         └── types.ts
@@ -107,6 +111,7 @@ pnpm install
 pnpm dev                          # http://localhost:3000
 pnpm lint                         # ESLint, including the React Compiler rules
 pnpm build
+node lib/messages.check.mjs       # the no-duplicates rule; plain Node strips the types
 ```
 
 **Tests:**
@@ -178,16 +183,17 @@ new WebSocket(`${WS_BASE}/ws/${roomSlug}`, ["bearer", token]);
 
 **Every `accept()` has to echo the subprotocol back** (`accept(subprotocol="bearer")`) or the browser fails the connection on a mismatch — including the accept that exists only to report `4004`. Note also that the header is one comma-separated list and not every ASGI server strips the space after the comma, so `bearer_token()` strips each offered value before comparing.
 
-**Client → Server messages (JSON):**
+**Client → Server messages (JSON):** validated by `app/schemas/websocket.py`, a discriminated union on `type`; anything else is dropped.
 ```json
-{ "type": "join", "username": "ghost_99" }
+{ "type": "join" }
 { "type": "message", "message": "hello" }
 ```
+`message` is stripped, then required to be 1..`MAX_MESSAGE_LENGTH` (500) characters — the same number the frontend puts on the input's `maxLength`. Extra fields are ignored. The Docker image also runs uvicorn with `--ws-max-size 65536`, so an oversized frame is refused at the transport (close `1009`) before it is parsed.
 
 **Server → Client broadcasts (JSON):**
 ```json
 { "type": "join", "username": "ghost_99", "room_slug": "general", "timestamp": "..." }
-{ "type": "message", "username": "ghost_99", "message": "hello", "room_slug": "general", "timestamp": "..." }
+{ "type": "message", "id": 42, "username": "ghost_99", "message": "hello", "room_slug": "general", "timestamp": "..." }
 { "event": "disconnect", "username": "ghost_99", "room_slug": "general", "timestamp": "..." }
 ```
 
@@ -195,9 +201,13 @@ Username in all server messages comes from the verified JWT, not from client pay
 
 **`room_slug`, not `room_id`.** Everything outside the database addresses a room by its slug. `room_id` is reserved for the integer foreign keys in `messages` and `room_members` that point at `rooms.id`.
 
-**Malformed input is ignored.** A frame that is not valid JSON, or that is valid JSON but not an object, is skipped and the connection stays open — it used to raise straight out of the handler, skipping cleanup and leaving a registered socket nobody was reading. The handler's cleanup lives in a `finally`, so every exit from the receive loop unregisters the socket; `ConnectionManager.disconnect` is idempotent because a broadcast drops dead sockets itself, and the owning handler then asks for a removal that already happened.
+**Malformed input is ignored.** A frame that fails `client_frame.validate_json` — bad JSON, not an object, unknown `type`, a `message` that is empty, blank, over-long or not a string — is skipped and the connection stays open — it used to raise straight out of the handler, skipping cleanup and leaving a registered socket nobody was reading. The handler's cleanup lives in a `finally`, so every exit from the receive loop unregisters the socket; `ConnectionManager.disconnect` is idempotent because a broadcast drops dead sockets itself, and the owning handler then asks for a removal that already happened.
 
 **Close codes.** A rejected token is refused before the handshake completes, so an unauthenticated peer never holds an open socket; uvicorn turns that into an HTTP 403 and the browser only sees a failed connection. An unknown room slug is different: the socket is accepted first and *then* closed with the application code `4004`, because a code sent before the handshake completes never reaches the browser. Any check that needs to report a reason to the client has to accept first.
+
+**Messages are stored before they are broadcast.** The handler inserts the row in a `ws_session()` of its own and commits, then broadcasts it with its `id` and its *stored* `created_at` — so a live frame and the same row in a history page carry the same id and timestamp. History is `GET /rooms/{slug}/messages?before=<id>`: pages of `MESSAGE_PAGE_SIZE` (100), oldest first, keyset on `id` so a page stays exact while new messages keep arriving; an empty page means the start of the room.
+
+**No message shows twice.** The client renders a message only from the server's copy — no optimistic line — and `lib/messages.ts` `merge()` keys every row as `m<id>`, so a message that arrives both live and in a history page is kept once. The first page is fetched from `onopen`, after the socket is registered: a message is then either stored before that query or broadcast to this socket after it, never neither, and when it is both the key drops the copy. The list is ordered by server timestamp, which is what lets join/leave lines keep their place when older history is merged in above them.
 
 **Testing sockets.** `tests/api/test_websockets.py` drives the route in-process with `httpx-ws`. Note that its ASGI transport surfaces a pre-accept close as a real close code, which a browser does not — so a test passing there is not proof the client can see the code. Verify anything close-code-shaped against a real uvicorn.
 
@@ -207,14 +217,14 @@ Username in all server messages comes from the verified JWT, not from client pay
 users         → id, username (unique), hashed_password, created_at
 rooms         → id, name (unique), created_at
 room_members  → user_id (FK), room_id (FK) — composite PK
-messages      → id, text, created_at, user_id (FK), room_id (FK)
+messages      → id, text, created_at, user_id (FK), room_id (FK) — index (room_id, id)
 ```
 
 ## Key Architectural Decisions
 
 **Async throughout** — `create_async_engine` + `asyncpg` driver. Never use `psycopg2` or sync SQLAlchemy here, it blocks the event loop.
 
-**A WebSocket handshake does not use `get_db`** — a WebSocket handler that declares `DbSession` holds that pooled connection for as long as the socket stays open, so idle chatters exhaust the pool. `app/api/deps.py` exposes `ws_session()`, an `async with` scoped to the handshake: the endpoint authenticates the token and resolves the room inside it, and the session is closed before the receive loop starts.
+**A WebSocket handler does not use `get_db`** — a WebSocket handler that declares `DbSession` holds that pooled connection for as long as the socket stays open, so idle chatters exhaust the pool. `app/api/deps.py` exposes `ws_session()`, an `async with` that is opened for the handshake and again for each message insert, and closed straight after. It never commits on its own; the insert commits explicitly.
 
 **The request transaction belongs to `get_db`** — CRUD functions call `flush()` to obtain generated ids but never `commit()`. The `get_db` dependency commits once when the request succeeds and rolls back on any exception.
 
@@ -225,6 +235,8 @@ messages      → id, text, created_at, user_id (FK), room_id (FK)
 **Rooms come from the database** — seeded by migration and served by `GET /rooms`, which requires a session. They are addressed by `slug` everywhere outside the database (`rooms.id` is only what the foreign keys point at), so the WebSocket path, `web/lib/types.ts` and the remount key all carry the slug. The API is deliberately read-only for rooms: users have no permission to create or delete them, so no write endpoints are exposed.
 
 **Two client-side routes.** `app/page.tsx` switches between splash, auth and the room list; `app/room/[slug]/page.tsx` is one room's chat. Both are Client Components — the session lives in `localStorage`, so no guard can run on the server and the room route redirects to `/` from an effect once `ready` is true. The only client-side fetch is `useRooms`, which keeps its three outcomes in a single tagged state value so the effect never writes state synchronously (the React Compiler lint rules reject that); the room route reuses it and picks its room out of the list rather than calling `GET /rooms/{slug}`.
+
+**The chat list keeps its scroll position.** `ChatScreen` loads the next older page when the list is scrolled within 40px of the top, and a layout effect shifts `scrollTop` by the height that was added above, so the rows being read do not move. It only follows new messages to the bottom when the reader is already there.
 
 **A dynamic page is reused when only its param changes** — `/room/general` → `/room/tech` does *not* remount it (that is what `template.tsx` is for). `useChatSocket` accumulates messages and members and never clears them, so the remount has to be forced explicitly: `ChatScreen` is rendered with `key={slug}`. Removing that key silently carries the previous room's messages into the next one.
 
@@ -240,8 +252,6 @@ The server's `4004` close code still exists and is still the authority — it co
 
 ## Known Gaps
 
-- **Messages are never persisted.** The WebSocket handler broadcasts and forgets; the `messages` table is unused.
-- **Own messages are recognised by username.** `useChatSocket` drops a broadcast whose `username` matches the session, so the same account open in two tabs never sees its own messages arrive in the other one. A per-message correlation id would replace the comparison.
 - **Usernames are case-sensitive accounts.** `Ghost_99` and `ghost_99` are two different rows in `users`, and neither login nor registration normalises or trims. The session now stores the name exactly as typed, which is what login proves is correct, but the two-accounts hazard is untouched.
 - **No presence roster.** `members` in the frontend is only filled from live `join` events, so joining an already-populated room shows an empty member list.
 
@@ -249,4 +259,3 @@ The server's `4004` close code still exists and is still the authority — it co
 
 - Redis Pub/Sub to replace in-memory ConnectionManager
 - Nginx reverse proxy with WebSocket upgrade headers
-- Message history on room join (load last N messages from DB)
