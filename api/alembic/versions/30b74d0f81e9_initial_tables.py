@@ -1,7 +1,7 @@
 """initial tables
 
 Revision ID: 30b74d0f81e9
-Revises: 5fdd9c03b95f
+Revises:
 Create Date: 2026-02-23 17:37:43.704933
 
 """
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = '30b74d0f81e9'
-down_revision: Union[str, Sequence[str], None] = '5fdd9c03b95f'
+down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

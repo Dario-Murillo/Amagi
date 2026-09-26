@@ -1,7 +1,7 @@
 """change datetime columns to timezone-aware
 
 Revision ID: e15e0ef1aba5
-Revises: f9d0886ff71c
+Revises: 30b74d0f81e9
 Create Date: 2026-02-25 20:55:53.670204
 
 """
@@ -13,7 +13,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = 'e15e0ef1aba5'
-down_revision: Union[str, Sequence[str], None] = 'f9d0886ff71c'
+down_revision: Union[str, Sequence[str], None] = '30b74d0f81e9'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
