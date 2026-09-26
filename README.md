@@ -43,6 +43,7 @@ Amagi/
 │   ├── alembic/          # Migration configuration and versions
 │   ├── tests/            # Test suite
 │   ├── pyproject.toml    # Dependencies and package metadata
+│   ├── uv.lock           # Exact versions of every dependency, transitive included
 │   ├── Dockerfile
 │   └── docker-compose.yml
 └── web/                  # Next.js frontend
@@ -68,18 +69,16 @@ Amagi/
 cd api
 ```
 
-2. Create and activate a virtual environment:
+2. Install [uv](https://docs.astral.sh/uv/) once, if you do not have it (`winget install astral-sh.uv`, or `pip install --user uv`).
+
+3. Create the virtual environment with exactly the versions in `uv.lock`, development extras included, and activate it:
 
 ```powershell
-python -m venv .venv
+uv sync --extra dev
 .\.venv\Scripts\Activate.ps1
 ```
 
-3. Install the project and its development extras:
-
-```powershell
-pip install -e ".[dev]"
-```
+`uv.lock` is committed and resolved for every platform at once, so Windows and the Linux image install the same versions. After changing `dependencies` in `pyproject.toml`, run `uv lock` and commit both files; to move one package forward within its range, `uv lock --upgrade-package <name>`.
 
 4. Create the database (the name has to match the one in `DATABASE_URL` below):
 

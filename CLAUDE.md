@@ -16,6 +16,7 @@ Amagi/
 │   ├── .env                      # Local environment variables (never committed)
 │   ├── .env.example
 │   ├── pyproject.toml            # Dependencies and package metadata
+│   ├── uv.lock                   # Pinned resolution, all platforms; committed
 │   ├── Dockerfile
 │   ├── docker-compose.yml        # Postgres + API for local orchestration
 │   ├── alembic.ini
@@ -96,9 +97,8 @@ Amagi/
 **Backend:**
 ```bash
 cd api
-python -m venv .venv
+uv sync --extra dev               # creates .venv from uv.lock
 .venv\Scripts\Activate.ps1        # PowerShell
-pip install -e ".[dev]"
 uvicorn app.main:app --reload
 # runs on http://localhost:8000
 # API docs at http://localhost:8000/docs
@@ -113,6 +113,8 @@ pnpm lint                         # ESLint, including the React Compiler rules
 pnpm build
 node lib/messages.check.mjs       # the no-duplicates rule; plain Node strips the types
 ```
+
+**Dependencies are locked with uv.** `pyproject.toml` holds the acceptable ranges, `uv.lock` the exact resolution, and the Docker image installs it with `uv sync --frozen`, which fails the build on a stale lock rather than re-resolving. Do not replace it with `pip freeze` or `pip-compile`: both resolve for the machine they run on, and a lock produced on Windows silently drops Linux-only packages such as `uvloop` (from `uvicorn[standard]`). After touching `dependencies`, run `uv lock` and commit both files.
 
 **Tests:**
 ```bash

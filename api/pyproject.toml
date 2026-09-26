@@ -6,8 +6,8 @@ requires-python = ">=3.11"
 # Bounds follow each package's own compatibility promise: an upper bound on the
 # major version for anything past 1.0, and on the minor version below it, since
 # semver promises nothing about 0.x. This stops a surprise breaking release from
-# arriving on an unrelated `pip install`; it does not pin transitive
-# dependencies, so it is not a substitute for a lock file.
+# arriving on an unrelated `uv lock`. The exact versions, transitive
+# dependencies included, are pinned in uv.lock.
 dependencies = [
     "fastapi[standard]>=0.141,<0.142",
     "sqlalchemy[asyncio]>=2.0,<3.0",

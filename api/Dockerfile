@@ -5,10 +5,15 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /code
 
+COPY --from=ghcr.io/astral-sh/uv:0.12 /uv /bin/uv
+
+# Install exactly what uv.lock pins, transitive dependencies included.
+# `--frozen` fails the build if the lock is stale instead of re-resolving.
 # Copy the package before installing: the build backend needs `app/` present.
-COPY pyproject.toml ./
+COPY pyproject.toml uv.lock ./
 COPY app ./app
-RUN pip install --no-cache-dir .
+RUN uv sync --frozen --no-cache
+ENV PATH="/code/.venv/bin:$PATH"
 
 COPY alembic.ini ./
 COPY alembic ./alembic
