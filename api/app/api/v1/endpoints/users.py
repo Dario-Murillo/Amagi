@@ -1,11 +1,9 @@
-from datetime import timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 
 from app.api.deps import CurrentUser, DbSession
-from app.core.config import settings
 from app.core.security import create_access_token, verify_password
 from app.crud import crud_user
 from app.models.user import User
@@ -75,7 +73,6 @@ async def login_for_access_token(
     access_token = create_access_token(
         # `ver` is what a logout invalidates: it has to travel in the token.
         data={"sub": str(user.id), "ver": user.token_version},
-        expires_delta=timedelta(minutes=settings.access_token_expire_minutes),
     )
 
     return Token(access_token=access_token, token_type="bearer")
